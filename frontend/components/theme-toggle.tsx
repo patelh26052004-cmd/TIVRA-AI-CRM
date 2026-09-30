@@ -1,0 +1,3 @@
+"use client";
+import {Moon,Sun} from "lucide-react"; import {useTheme} from "next-themes"; import {useEffect,useState} from "react";
+export function ThemeToggle(){const {theme,setTheme}=useTheme();const[m,setM]=useState(false);useEffect(()=>setM(true),[]);if(!m)return <div className="h-10 w-10"/>;return <button onClick={()=>setTheme(theme==="dark"?"light":"dark")} className="h-10 w-10 rounded-xl border border-slate-200 dark:border-white/10 flex items-center justify-center">{theme==="dark"?<Sun className="h-4 w-4 text-orange-500"/>:<Moon className="h-4 w-4"/>}</button>}

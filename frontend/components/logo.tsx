@@ -1,0 +1,1 @@
+export function Logo(){return <div className="flex items-center gap-2.5"><div className="grid h-9 w-9 place-items-center rounded-xl bg-orange-500 text-white font-black">T</div><span className="text-xl font-black">TIVRA <span className="text-orange-500">AI</span></span></div>}
