@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Settings,
   Bot,
@@ -21,9 +21,8 @@ import {
   Phone,
   Mail,
   KeyRound,
-  Eye,
-  EyeOff,
   Target,
+  CalendarDays,
 } from "lucide-react";
 
 type Tab =
@@ -35,116 +34,155 @@ type Tab =
   | "security"
   | "users";
 
+type SettingsState = {
+  companyName: string;
+  companyEmail: string;
+  timezone: string;
+  language: string;
+  dateFormat: string;
+  aiEnabled: boolean;
+  autoReply: boolean;
+  leadScoring: boolean;
+  intentDetection: boolean;
+  requirementExtraction: boolean;
+  humanHandover: boolean;
+  aiConfidence: string;
+  defaultLeadStage: string;
+  autoAssignLeads: boolean;
+  duplicateDetection: boolean;
+  hotLeadThreshold: string;
+  followUpDays: string;
+  whatsappEnabled: boolean;
+  whatsappAutoReply: boolean;
+  whatsappNotifications: boolean;
+  businessHours: string;
+  emailNotifications: boolean;
+  leadNotifications: boolean;
+  quotationNotifications: boolean;
+  followUpNotifications: boolean;
+  appointmentNotifications: boolean;
+  twoFactor: boolean;
+  loginAlerts: boolean;
+  sessionTimeout: string;
+  passwordExpiry: string;
+  adminName: string;
+  adminEmail: string;
+  adminRole: string;
+};
+
+const DEFAULT_SETTINGS: SettingsState = {
+  companyName: "TIVRA AI",
+  companyEmail: "admin@tivra.ai",
+  timezone: "Asia/Kolkata",
+  language: "English",
+  dateFormat: "DD/MM/YYYY",
+
+  aiEnabled: true,
+  autoReply: true,
+  leadScoring: true,
+  intentDetection: true,
+  requirementExtraction: true,
+  humanHandover: true,
+  aiConfidence: "85",
+
+  defaultLeadStage: "New",
+  autoAssignLeads: true,
+  duplicateDetection: true,
+  hotLeadThreshold: "80",
+  followUpDays: "2",
+
+  whatsappEnabled: true,
+  whatsappAutoReply: true,
+  whatsappNotifications: true,
+  businessHours: "9:00 AM - 6:00 PM",
+
+  emailNotifications: true,
+  leadNotifications: true,
+  quotationNotifications: true,
+  followUpNotifications: true,
+  appointmentNotifications: true,
+
+  twoFactor: false,
+  loginAlerts: true,
+  sessionTimeout: "30",
+  passwordExpiry: "90",
+
+  adminName: "Admin",
+  adminEmail: "admin@tivra.ai",
+  adminRole: "Administrator",
+};
+
+function loadSettings(): SettingsState {
+  if (typeof window === "undefined") return DEFAULT_SETTINGS;
+
+  try {
+    const raw = localStorage.getItem("tivra_settings");
+    if (!raw) return DEFAULT_SETTINGS;
+
+    const parsed = JSON.parse(raw) as Partial<SettingsState>;
+
+    return {
+      ...DEFAULT_SETTINGS,
+      ...parsed,
+    };
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
+
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("general");
   const [saved, setSaved] = useState(false);
+  const [settings, setSettings] = useState<SettingsState>(DEFAULT_SETTINGS);
 
-  const [settings, setSettings] = useState({
-    companyName: "TIVRA AI",
-    companyEmail: "admin@tivra.ai",
-    timezone: "Asia/Kolkata",
-    language: "English",
-    dateFormat: "DD/MM/YYYY",
+  useEffect(() => {
+    setSettings(loadSettings());
+  }, []);
 
-    aiEnabled: true,
-    autoReply: true,
-    leadScoring: true,
-    intentDetection: true,
-    requirementExtraction: true,
-    humanHandover: true,
-    aiConfidence: "85",
-
-    defaultLeadStage: "New",
-    autoAssignLeads: true,
-    duplicateDetection: true,
-    hotLeadThreshold: "80",
-    followUpDays: "2",
-
-    whatsappEnabled: true,
-    whatsappAutoReply: true,
-    whatsappNotifications: true,
-    businessHours: "9:00 AM - 6:00 PM",
-
-    emailNotifications: true,
-    leadNotifications: true,
-    quotationNotifications: true,
-    followUpNotifications: true,
-    appointmentNotifications: true,
-
-    twoFactor: false,
-    loginAlerts: true,
-    sessionTimeout: "30",
-    passwordExpiry: "90",
-
-    adminName: "Admin",
-    adminEmail: "admin@tivra.ai",
-    adminRole: "Administrator",
-  });
-
-  const updateSetting = (
-    key: keyof typeof settings,
-    value: string | boolean
+  const updateSetting = <K extends keyof SettingsState>(
+    key: K,
+    value: SettingsState[K]
   ) => {
     setSettings((prev) => ({
       ...prev,
       [key]: value,
     }));
-
     setSaved(false);
   };
 
   const handleSave = () => {
-    setSaved(true);
+    try {
+      localStorage.setItem("tivra_settings", JSON.stringify(settings));
+      setSaved(true);
 
-    setTimeout(() => {
-      setSaved(false);
-    }, 3000);
+      window.setTimeout(() => {
+        setSaved(false);
+      }, 3000);
+    } catch {
+      alert("Unable to save settings in this browser.");
+    }
   };
 
   const handleReset = () => {
-    setSettings({
-      companyName: "TIVRA AI",
-      companyEmail: "admin@tivra.ai",
-      timezone: "Asia/Kolkata",
-      language: "English",
-      dateFormat: "DD/MM/YYYY",
+    // Remove the saved values first so they cannot be restored on reload.
+    try {
+      localStorage.removeItem("tivra_settings");
+    } catch {
+      // Ignore storage errors and still reset the visible React state.
+    }
 
-      aiEnabled: true,
-      autoReply: true,
-      leadScoring: true,
-      intentDetection: true,
-      requirementExtraction: true,
-      humanHandover: true,
-      aiConfidence: "85",
+    // Create a fresh object so every controlled input receives new default values.
+    const resetValue: SettingsState = JSON.parse(
+      JSON.stringify(DEFAULT_SETTINGS)
+    );
 
-      defaultLeadStage: "New",
-      autoAssignLeads: true,
-      duplicateDetection: true,
-      hotLeadThreshold: "80",
-      followUpDays: "2",
-
-      whatsappEnabled: true,
-      whatsappAutoReply: true,
-      whatsappNotifications: true,
-      businessHours: "9:00 AM - 6:00 PM",
-
-      emailNotifications: true,
-      leadNotifications: true,
-      quotationNotifications: true,
-      followUpNotifications: true,
-      appointmentNotifications: true,
-
-      twoFactor: false,
-      loginAlerts: true,
-      sessionTimeout: "30",
-      passwordExpiry: "90",
-
-      adminName: "Admin",
-      adminEmail: "admin@tivra.ai",
-      adminRole: "Administrator",
-    });
-
+    setSettings(resetValue);
     setSaved(false);
+
+    // Force a clean client render to guarantee every tab/control is reset.
+    window.setTimeout(() => {
+      window.location.reload();
+    }, 50);
   };
 
   const tabs = [
@@ -195,7 +233,6 @@ export default function SettingsPage() {
   return (
     <main className="min-h-[calc(100vh-73px)] bg-slate-50 text-slate-950 dark:bg-[#070c1b] dark:text-white">
       <div className="mx-auto max-w-[1500px] space-y-6 p-4 sm:p-6 lg:p-8">
-
         {/* HEADER */}
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -258,7 +295,6 @@ export default function SettingsPage() {
 
         {/* SETTINGS LAYOUT */}
         <section className="grid gap-6 lg:grid-cols-[270px_minmax(0,1fr)]">
-
           {/* SIDEBAR */}
           <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-2 shadow-sm dark:border-white/10 dark:bg-[#111a2e]">
             <div className="p-3">
@@ -312,7 +348,6 @@ export default function SettingsPage() {
 
           {/* CONTENT */}
           <div className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-[#111a2e]">
-
             {/* GENERAL */}
             {activeTab === "general" && (
               <SettingsSection
@@ -324,26 +359,20 @@ export default function SettingsPage() {
                   <InputField
                     label="Company Name"
                     value={settings.companyName}
-                    onChange={(value) =>
-                      updateSetting("companyName", value)
-                    }
+                    onChange={(value) => updateSetting("companyName", value)}
                   />
 
                   <InputField
                     label="Company Email"
                     type="email"
                     value={settings.companyEmail}
-                    onChange={(value) =>
-                      updateSetting("companyEmail", value)
-                    }
+                    onChange={(value) => updateSetting("companyEmail", value)}
                   />
 
                   <SelectField
                     label="Timezone"
                     value={settings.timezone}
-                    onChange={(value) =>
-                      updateSetting("timezone", value)
-                    }
+                    onChange={(value) => updateSetting("timezone", value)}
                     options={[
                       "Asia/Kolkata",
                       "Asia/Dubai",
@@ -355,23 +384,15 @@ export default function SettingsPage() {
                   <SelectField
                     label="Language"
                     value={settings.language}
-                    onChange={(value) =>
-                      updateSetting("language", value)
-                    }
+                    onChange={(value) => updateSetting("language", value)}
                     options={["English", "Hindi", "Gujarati"]}
                   />
 
                   <SelectField
                     label="Date Format"
                     value={settings.dateFormat}
-                    onChange={(value) =>
-                      updateSetting("dateFormat", value)
-                    }
-                    options={[
-                      "DD/MM/YYYY",
-                      "MM/DD/YYYY",
-                      "YYYY-MM-DD",
-                    ]}
+                    onChange={(value) => updateSetting("dateFormat", value)}
+                    options={["DD/MM/YYYY", "MM/DD/YYYY", "YYYY-MM-DD"]}
                   />
                 </div>
 
@@ -395,9 +416,7 @@ export default function SettingsPage() {
                   title="Enable AI Sales Agent"
                   description="Allow TIVRA AI to automatically handle customer conversations."
                   enabled={settings.aiEnabled}
-                  onChange={(value) =>
-                    updateSetting("aiEnabled", value)
-                  }
+                  onChange={(value) => updateSetting("aiEnabled", value)}
                 />
 
                 <ToggleRow
@@ -405,9 +424,7 @@ export default function SettingsPage() {
                   title="Automatic AI Replies"
                   description="Automatically respond to incoming customer messages."
                   enabled={settings.autoReply}
-                  onChange={(value) =>
-                    updateSetting("autoReply", value)
-                  }
+                  onChange={(value) => updateSetting("autoReply", value)}
                 />
 
                 <ToggleRow
@@ -415,9 +432,7 @@ export default function SettingsPage() {
                   title="AI Lead Scoring"
                   description="Automatically calculate lead scores from customer activity."
                   enabled={settings.leadScoring}
-                  onChange={(value) =>
-                    updateSetting("leadScoring", value)
-                  }
+                  onChange={(value) => updateSetting("leadScoring", value)}
                 />
 
                 <ToggleRow
@@ -425,9 +440,7 @@ export default function SettingsPage() {
                   title="Intent Detection"
                   description="Detect pricing, demo, product and other customer intents."
                   enabled={settings.intentDetection}
-                  onChange={(value) =>
-                    updateSetting("intentDetection", value)
-                  }
+                  onChange={(value) => updateSetting("intentDetection", value)}
                 />
 
                 <ToggleRow
@@ -445,18 +458,14 @@ export default function SettingsPage() {
                   title="Human Handover"
                   description="Allow AI to transfer conversations to a salesperson."
                   enabled={settings.humanHandover}
-                  onChange={(value) =>
-                    updateSetting("humanHandover", value)
-                  }
+                  onChange={(value) => updateSetting("humanHandover", value)}
                 />
 
                 <div className="grid gap-5 md:grid-cols-2">
                   <SelectField
                     label="Minimum AI Confidence"
                     value={settings.aiConfidence}
-                    onChange={(value) =>
-                      updateSetting("aiConfidence", value)
-                    }
+                    onChange={(value) => updateSetting("aiConfidence", value)}
                     options={["70", "75", "80", "85", "90", "95"]}
                   />
 
@@ -479,9 +488,7 @@ export default function SettingsPage() {
                 <SelectField
                   label="Default Lead Stage"
                   value={settings.defaultLeadStage}
-                  onChange={(value) =>
-                    updateSetting("defaultLeadStage", value)
-                  }
+                  onChange={(value) => updateSetting("defaultLeadStage", value)}
                   options={[
                     "New",
                     "Contacted",
@@ -497,9 +504,7 @@ export default function SettingsPage() {
                   title="Auto Assign Leads"
                   description="Automatically assign new leads to available sales users."
                   enabled={settings.autoAssignLeads}
-                  onChange={(value) =>
-                    updateSetting("autoAssignLeads", value)
-                  }
+                  onChange={(value) => updateSetting("autoAssignLeads", value)}
                 />
 
                 <ToggleRow
@@ -525,9 +530,7 @@ export default function SettingsPage() {
                   <SelectField
                     label="Default Follow-up After"
                     value={settings.followUpDays}
-                    onChange={(value) =>
-                      updateSetting("followUpDays", value)
-                    }
+                    onChange={(value) => updateSetting("followUpDays", value)}
                     options={["1", "2", "3", "5", "7"]}
                   />
                 </div>
@@ -546,9 +549,7 @@ export default function SettingsPage() {
                   title="Enable WhatsApp"
                   description="Enable WhatsApp communication for your CRM."
                   enabled={settings.whatsappEnabled}
-                  onChange={(value) =>
-                    updateSetting("whatsappEnabled", value)
-                  }
+                  onChange={(value) => updateSetting("whatsappEnabled", value)}
                 />
 
                 <ToggleRow
@@ -574,9 +575,7 @@ export default function SettingsPage() {
                 <SelectField
                   label="Business Hours"
                   value={settings.businessHours}
-                  onChange={(value) =>
-                    updateSetting("businessHours", value)
-                  }
+                  onChange={(value) => updateSetting("businessHours", value)}
                   options={[
                     "9:00 AM - 6:00 PM",
                     "9:00 AM - 7:00 PM",
@@ -605,9 +604,7 @@ export default function SettingsPage() {
                   title="Email Notifications"
                   description="Receive important CRM updates by email."
                   enabled={settings.emailNotifications}
-                  onChange={(value) =>
-                    updateSetting("emailNotifications", value)
-                  }
+                  onChange={(value) => updateSetting("emailNotifications", value)}
                 />
 
                 <ToggleRow
@@ -615,9 +612,7 @@ export default function SettingsPage() {
                   title="New Lead Notifications"
                   description="Notify users when a new lead is created."
                   enabled={settings.leadNotifications}
-                  onChange={(value) =>
-                    updateSetting("leadNotifications", value)
-                  }
+                  onChange={(value) => updateSetting("leadNotifications", value)}
                 />
 
                 <ToggleRow
@@ -641,7 +636,7 @@ export default function SettingsPage() {
                 />
 
                 <ToggleRow
-                  icon={<CalendarDaysIcon />}
+                  icon={<CalendarDays size={18} />}
                   title="Appointment Notifications"
                   description="Notify users about upcoming customer appointments."
                   enabled={settings.appointmentNotifications}
@@ -664,9 +659,7 @@ export default function SettingsPage() {
                   title="Two-Factor Authentication"
                   description="Require an additional verification step during login."
                   enabled={settings.twoFactor}
-                  onChange={(value) =>
-                    updateSetting("twoFactor", value)
-                  }
+                  onChange={(value) => updateSetting("twoFactor", value)}
                 />
 
                 <ToggleRow
@@ -674,34 +667,31 @@ export default function SettingsPage() {
                   title="Login Alerts"
                   description="Receive an alert when a new login is detected."
                   enabled={settings.loginAlerts}
-                  onChange={(value) =>
-                    updateSetting("loginAlerts", value)
-                  }
+                  onChange={(value) => updateSetting("loginAlerts", value)}
                 />
 
                 <div className="grid gap-5 md:grid-cols-2">
                   <SelectField
                     label="Session Timeout"
                     value={settings.sessionTimeout}
-                    onChange={(value) =>
-                      updateSetting("sessionTimeout", value)
-                    }
+                    onChange={(value) => updateSetting("sessionTimeout", value)}
                     options={["15", "30", "60", "120"]}
                   />
 
                   <SelectField
                     label="Password Expiry"
                     value={settings.passwordExpiry}
-                    onChange={(value) =>
-                      updateSetting("passwordExpiry", value)
-                    }
+                    onChange={(value) => updateSetting("passwordExpiry", value)}
                     options={["30", "60", "90", "180", "Never"]}
                   />
                 </div>
 
                 <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 dark:border-orange-500/20 dark:bg-orange-500/5">
                   <div className="flex gap-3">
-                    <Lock className="mt-0.5 shrink-0 text-orange-500" size={18} />
+                    <Lock
+                      className="mt-0.5 shrink-0 text-orange-500"
+                      size={18}
+                    />
 
                     <div>
                       <p className="text-sm font-semibold">
@@ -709,8 +699,8 @@ export default function SettingsPage() {
                       </p>
 
                       <p className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-400">
-                        Enable two-factor authentication for administrator
-                        accounts to provide an additional layer of protection.
+                        Enable two-factor authentication for administrator accounts
+                        to provide an additional layer of protection.
                       </p>
                     </div>
                   </div>
@@ -729,13 +719,16 @@ export default function SettingsPage() {
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-3">
                       <div className="flex h-11 w-11 items-center justify-center rounded-full bg-orange-100 font-bold text-orange-600 dark:bg-orange-500/10 dark:text-orange-400">
-                        AP
+                        {settings.adminName
+                          .split(" ")
+                          .map((part) => part[0])
+                          .slice(0, 2)
+                          .join("")
+                          .toUpperCase() || "AD"}
                       </div>
 
                       <div>
-                        <p className="font-semibold">
-                          {settings.adminName}
-                        </p>
+                        <p className="font-semibold">{settings.adminName}</p>
 
                         <p className="text-xs text-slate-500 dark:text-slate-400">
                           {settings.adminEmail}
@@ -744,7 +737,7 @@ export default function SettingsPage() {
                     </div>
 
                     <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-600 dark:bg-orange-500/10 dark:text-orange-400">
-                      Administrator
+                      {settings.adminRole}
                     </span>
                   </div>
                 </div>
@@ -753,18 +746,14 @@ export default function SettingsPage() {
                   <InputField
                     label="Admin Name"
                     value={settings.adminName}
-                    onChange={(value) =>
-                      updateSetting("adminName", value)
-                    }
+                    onChange={(value) => updateSetting("adminName", value)}
                   />
 
                   <InputField
                     label="Admin Email"
                     type="email"
                     value={settings.adminEmail}
-                    onChange={(value) =>
-                      updateSetting("adminEmail", value)
-                    }
+                    onChange={(value) => updateSetting("adminEmail", value)}
                   />
                 </div>
 
@@ -933,9 +922,7 @@ function ToggleRow({
         onClick={() => onChange(!enabled)}
         aria-pressed={enabled}
         className={`relative h-6 w-11 shrink-0 rounded-full transition ${
-          enabled
-            ? "bg-orange-500"
-            : "bg-slate-300 dark:bg-slate-700"
+          enabled ? "bg-orange-500" : "bg-slate-300 dark:bg-slate-700"
         }`}
       >
         <span
@@ -980,8 +967,4 @@ function Permission({ label }: { label: string }) {
       <span className="text-xs font-medium">{label}</span>
     </div>
   );
-}
-
-function CalendarDaysIcon() {
-  return <Clock3 size={18} />;
 }

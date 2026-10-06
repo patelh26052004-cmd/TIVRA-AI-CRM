@@ -1,1309 +1,810 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  Shield,
+  ShieldCheck,
+  Users,
+  UserCheck,
+  UserX,
+  Settings2,
+  Database,
+  RefreshCw,
+  Bell,
+  Activity,
+  LockKeyhole,
+  Save,
   Plus,
   Search,
-  Edit3,
+  MoreVertical,
+  Eye,
+  Pencil,
   Trash2,
-  Check,
-  X,
-  Users,
-  Lock,
-  Save,
-  UserPlus,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  Server,
+  Download,
+  RotateCcw,
+  Clock3,
   Mail,
-  UserCheck,
+  X,
+  KeyRound,
 } from "lucide-react";
 
-type Permission =
-  | "dashboard"
-  | "leads"
-  | "sales"
-  | "quotations"
-  | "payments"
-  | "billing"
-  | "projects"
-  | "tasks"
-  | "campaigns"
-  | "analytics"
-  | "employees"
-  | "notifications"
-  | "settings";
+type AdminUserStatus = "ACTIVE" | "INACTIVE" | "SUSPENDED";
 
-type Employee = {
-  id: number;
+type AdminUser = {
+  id: string;
   name: string;
   email: string;
+  role: string;
+  status: AdminUserStatus;
+  lastLogin: string;
   department: string;
-  roleId: number;
-  status: "ACTIVE" | "INACTIVE";
 };
 
-type Role = {
+type SystemSetting = {
+  maintenanceMode: boolean;
+  emailNotifications: boolean;
+  loginAlerts: boolean;
+  autoBackup: boolean;
+  twoFactorRequired: boolean;
+};
+
+type ActivityItem = {
   id: number;
-  name: string;
+  title: string;
   description: string;
-  system: boolean;
-  permissions: Permission[];
+  time: string;
+  type: "security" | "system" | "user" | "database";
 };
 
-const permissionLabels: Record<Permission, string> = {
-  dashboard: "Dashboard",
-  leads: "Lead CRM",
-  sales: "Sales Pipeline",
-  quotations: "Quotations",
-  payments: "Payments",
-  billing: "Billing / Invoices",
-  projects: "Projects",
-  tasks: "Tasks",
-  campaigns: "Campaigns",
-  analytics: "AI Analytics",
-  employees: "Employees & Roles",
-  notifications: "Notifications",
-  settings: "Settings",
-};
-
-const allPermissions = Object.keys(permissionLabels) as Permission[];
-
-const initialRoles: Role[] = [
+const initialUsers: AdminUser[] = [
   {
-    id: 1,
-    name: "Administrator",
-    description: "Full access to all CRM modules and settings.",
-    system: true,
-    permissions: allPermissions,
-  },
-  {
-    id: 2,
-    name: "Manager",
-    description: "Manage sales, projects, tasks and reports.",
-    system: false,
-    permissions: [
-      "dashboard",
-      "leads",
-      "sales",
-      "quotations",
-      "payments",
-      "billing",
-      "projects",
-      "tasks",
-      "analytics",
-      "notifications",
-    ],
-  },
-  {
-    id: 3,
-    name: "Sales",
-    description: "Manage leads, sales pipeline and quotations.",
-    system: false,
-    permissions: [
-      "dashboard",
-      "leads",
-      "sales",
-      "quotations",
-      "notifications",
-    ],
-  },
-  {
-    id: 4,
-    name: "Developer",
-    description: "Manage assigned projects and development tasks.",
-    system: false,
-    permissions: [
-      "dashboard",
-      "projects",
-      "tasks",
-      "notifications",
-    ],
-  },
-  {
-    id: 5,
-    name: "Accounts",
-    description: "Manage payments and billing operations.",
-    system: false,
-    permissions: [
-      "dashboard",
-      "payments",
-      "billing",
-      "notifications",
-    ],
-  },
-  {
-    id: 6,
-    name: "Marketing",
-    description: "Manage campaigns and marketing analytics.",
-    system: false,
-    permissions: [
-      "dashboard",
-      "campaigns",
-      "analytics",
-      "notifications",
-    ],
-  },
-];
-
-const initialEmployees: Employee[] = [
-  {
-    id: 1,
-    name: "Aarav Mehta",
-    email: "aarav@example.com",
+    id: "ADM-001",
+    name: "Ashutosh",
+    email: "ashutosh@company.com",
+    role: "Administrator",
+    status: "ACTIVE",
+    lastLogin: "Today, 10:42 AM",
     department: "Management",
-    roleId: 1,
-    status: "ACTIVE",
   },
   {
-    id: 2,
-    name: "Riya Shah",
-    email: "riya@example.com",
+    id: "ADM-002",
+    name: "Saloni Mehta",
+    email: "saloni@company.com",
+    role: "Sales Manager",
+    status: "ACTIVE",
+    lastLogin: "Today, 09:18 AM",
     department: "Sales",
-    roleId: 2,
-    status: "ACTIVE",
   },
   {
-    id: 3,
-    name: "Dev Patel",
-    email: "dev@example.com",
+    id: "ADM-003",
+    name: "Hetvi Shah",
+    email: "hetvi@company.com",
+    role: "Developer",
+    status: "ACTIVE",
+    lastLogin: "Yesterday, 06:25 PM",
     department: "Development",
-    roleId: 4,
-    status: "ACTIVE",
   },
   {
-    id: 4,
-    name: "Mira Joshi",
-    email: "mira@example.com",
-    department: "QA",
-    roleId: 4,
-    status: "ACTIVE",
-  },
-  {
-    id: 5,
-    name: "Neha Desai",
-    email: "neha@example.com",
-    department: "HR",
-    roleId: 5,
-    status: "ACTIVE",
-  },
-  {
-    id: 6,
-    name: "Karan Joshi",
-    email: "karan@example.com",
-    department: "Accounts",
-    roleId: 5,
-    status: "ACTIVE",
-  },
-  {
-    id: 7,
-    name: "Anaya Shah",
-    email: "anaya@example.com",
-    department: "Marketing",
-    roleId: 6,
-    status: "ACTIVE",
-  },
-  {
-    id: 8,
-    name: "Rahul Mehta",
-    email: "rahul@example.com",
-    department: "Development",
-    roleId: 4,
-    status: "ACTIVE",
-  },
-  {
-    id: 9,
-    name: "Priya Patel",
-    email: "priya@example.com",
-    department: "Sales",
-    roleId: 3,
-    status: "ACTIVE",
-  },
-  {
-    id: 10,
-    name: "Kishan Shah",
-    email: "kishan@example.com",
-    department: "Marketing",
-    roleId: 6,
+    id: "ADM-004",
+    name: "Hasti Patel",
+    email: "hasti@company.com",
+    role: "QA",
     status: "INACTIVE",
+    lastLogin: "Sep 27, 2026",
+    department: "QA",
+  },
+  {
+    id: "ADM-005",
+    name: "Kashis Patel",
+    email: "kashis@company.com",
+    role: "Digital Marketing",
+    status: "SUSPENDED",
+    lastLogin: "Sep 22, 2026",
+    department: "Marketing",
   },
 ];
 
-export default function AdminPage() {
-  const [roles, setRoles] = useState<Role[]>(initialRoles);
-  const [employees, setEmployees] =
-    useState<Employee[]>(initialEmployees);
+const initialActivity: ActivityItem[] = [
+  {
+    id: 1,
+    title: "Administrator login",
+    description: "Admin account signed in successfully.",
+    time: "10 min ago",
+    type: "security",
+  },
+  {
+    id: 2,
+    title: "Backup completed",
+    description: "Latest application backup completed successfully.",
+    time: "1 hour ago",
+    type: "database",
+  },
+  {
+    id: 3,
+    title: "User status changed",
+    description: "Kashis Patel was suspended.",
+    time: "3 hours ago",
+    type: "user",
+  },
+  {
+    id: 4,
+    title: "System synchronization",
+    description: "CRM data synchronization completed.",
+    time: "5 hours ago",
+    type: "system",
+  },
+];
 
-  const [search, setSearch] = useState("");
+const roles = [
+  "Administrator",
+  "Sales Manager",
+  "Developer",
+  "QA",
+  "Digital Marketing",
+  "HR Manager",
+];
 
-  // Role modal
-  const [showRoleModal, setShowRoleModal] = useState(false);
-  const [editingRole, setEditingRole] = useState<Role | null>(null);
+const departments = [
+  "Management",
+  "Sales",
+  "Development",
+  "QA",
+  "Marketing",
+  "HR",
+  "Accounts",
+];
 
-  const [roleName, setRoleName] = useState("");
-  const [description, setDescription] = useState("");
-  const [selectedPermissions, setSelectedPermissions] =
-    useState<Permission[]>([]);
+function readStorage<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
 
-  // Assign employee modal
-  const [showAssignModal, setShowAssignModal] = useState(false);
-  const [assigningRole, setAssigningRole] = useState<Role | null>(null);
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
 
-  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<
-    number[]
-  >([]);
+function writeStorage<T>(key: string, value: T) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(key, JSON.stringify(value));
+}
 
-  const [employeeSearch, setEmployeeSearch] = useState("");
+function getInitials(name: string) {
+  return name
+    .trim()
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
 
-  const filteredRoles = useMemo(() => {
-    return roles.filter((role) =>
-      `${role.name} ${role.description}`
-        .toLowerCase()
-        .includes(search.toLowerCase())
-    );
-  }, [roles, search]);
+function activityIcon(type: ActivityItem["type"]) {
+  if (type === "security") return ShieldCheck;
+  if (type === "database") return Database;
+  if (type === "user") return Users;
+  return Activity;
+}
 
-  const activeEmployees = employees.filter(
-    (employee) => employee.status === "ACTIVE"
+export default function AdminPanelPage() {
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [settings, setSettings] = useState<SystemSetting>({
+    maintenanceMode: false,
+    emailNotifications: true,
+    loginAlerts: true,
+    autoBackup: true,
+    twoFactorRequired: false,
+  });
+
+  const [activeTab, setActiveTab] = useState<"overview" | "users" | "system">(
+    "overview"
   );
 
-  function getRoleEmployees(roleId: number) {
-    return employees.filter(
-      (employee) => employee.roleId === roleId
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | AdminUserStatus>(
+    "ALL"
+  );
+  const [roleFilter, setRoleFilter] = useState("ALL");
+
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+  const [showUserForm, setShowUserForm] = useState(false);
+  const [showUserView, setShowUserView] = useState(false);
+
+  const [userForm, setUserForm] = useState({
+    name: "",
+    email: "",
+    role: "Sales Manager",
+    department: "Sales",
+    status: "ACTIVE" as AdminUserStatus,
+  });
+
+  const [backupStatus, setBackupStatus] = useState(
+    "Last backup: Today, 09:30 AM"
+  );
+  const [syncing, setSyncing] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  useEffect(() => {
+    setUsers(readStorage<AdminUser[]>("tivra_admin_users", initialUsers));
+    setActivities(
+      readStorage<ActivityItem[]>("tivra_admin_activity", initialActivity)
     );
-  }
-
-  function openCreateModal() {
-    setEditingRole(null);
-    setRoleName("");
-    setDescription("");
-    setSelectedPermissions(["dashboard"]);
-    setShowRoleModal(true);
-  }
-
-  function openEditModal(role: Role) {
-    setEditingRole(role);
-    setRoleName(role.name);
-    setDescription(role.description);
-    setSelectedPermissions(role.permissions);
-    setShowRoleModal(true);
-  }
-
-  function togglePermission(permission: Permission) {
-    setSelectedPermissions((current) =>
-      current.includes(permission)
-        ? current.filter((item) => item !== permission)
-        : [...current, permission]
-    );
-  }
-
-  function selectAllPermissions() {
-    setSelectedPermissions(allPermissions);
-  }
-
-  function clearPermissions() {
-    setSelectedPermissions([]);
-  }
-
-  function saveRole() {
-    if (!roleName.trim()) {
-      alert("Please enter role name.");
-      return;
-    }
-
-    if (selectedPermissions.length === 0) {
-      alert("Please select at least one permission.");
-      return;
-    }
-
-    if (editingRole) {
-      setRoles((current) =>
-        current.map((role) =>
-          role.id === editingRole.id
-            ? {
-                ...role,
-                name: roleName.trim(),
-                description: description.trim(),
-                permissions: selectedPermissions,
-              }
-            : role
-        )
-      );
-    } else {
-      const newRole: Role = {
-        id: Date.now(),
-        name: roleName.trim(),
-        description:
-          description.trim() ||
-          "Custom role created by administrator.",
-        system: false,
-        permissions: selectedPermissions,
-      };
-
-      setRoles((current) => [...current, newRole]);
-    }
-
-    setShowRoleModal(false);
-  }
-
-  function deleteRole(role: Role) {
-    if (role.system) {
-      alert("System roles cannot be deleted.");
-      return;
-    }
-
-    const roleEmployees = getRoleEmployees(role.id);
-
-    if (roleEmployees.length > 0) {
-      alert(
-        `This role has ${roleEmployees.length} assigned employee(s). Please reassign them before deleting the role.`
-      );
-      return;
-    }
-
-    const confirmed = window.confirm(
-      `Delete "${role.name}" role?`
-    );
-
-    if (!confirmed) return;
-
-    setRoles((current) =>
-      current.filter((item) => item.id !== role.id)
-    );
-  }
-
-  // ==========================================
-  // ASSIGN EMPLOYEE
-  // ==========================================
-
-  function openAssignModal(role: Role) {
-    const assignedEmployees = employees
-      .filter((employee) => employee.roleId === role.id)
-      .map((employee) => employee.id);
-
-    setAssigningRole(role);
-    setSelectedEmployeeIds(assignedEmployees);
-    setEmployeeSearch("");
-    setShowAssignModal(true);
-  }
-
-  function toggleEmployee(employeeId: number) {
-    setSelectedEmployeeIds((current) => {
-      if (current.includes(employeeId)) {
-        return current.filter((id) => id !== employeeId);
-      }
-
-      return [...current, employeeId];
-    });
-  }
-
-  const filteredEmployees = useMemo(() => {
-    return activeEmployees.filter((employee) =>
-      `${employee.name} ${employee.email} ${employee.department}`
-        .toLowerCase()
-        .includes(employeeSearch.toLowerCase())
-    );
-  }, [activeEmployees, employeeSearch]);
-
-  function selectAllEmployees() {
-    const visibleIds = filteredEmployees.map(
-      (employee) => employee.id
-    );
-
-    setSelectedEmployeeIds((current) => {
-      const combined = new Set([
-        ...current,
-        ...visibleIds,
-      ]);
-
-      return Array.from(combined);
-    });
-  }
-
-  function clearVisibleEmployees() {
-    const visibleIds = new Set(
-      filteredEmployees.map((employee) => employee.id)
-    );
-
-    setSelectedEmployeeIds((current) =>
-      current.filter((id) => !visibleIds.has(id))
-    );
-  }
-
-  function saveAssignments() {
-    if (!assigningRole) return;
-
-    setEmployees((current) =>
-      current.map((employee) => {
-        // Assign selected employees to this role
-        if (selectedEmployeeIds.includes(employee.id)) {
-          return {
-            ...employee,
-            roleId: assigningRole.id,
-          };
-        }
-
-        // Remove employees that were previously
-        // assigned to this role but are now unchecked
-        if (employee.roleId === assigningRole.id) {
-          return {
-            ...employee,
-            roleId: 0,
-          };
-        }
-
-        return employee;
+    setSettings(
+      readStorage<SystemSetting>("tivra_admin_settings", {
+        maintenanceMode: false,
+        emailNotifications: true,
+        loginAlerts: true,
+        autoBackup: true,
+        twoFactorRequired: false,
       })
     );
+  }, []);
 
-    setShowAssignModal(false);
-  }
+  useEffect(() => {
+    if (users.length) writeStorage("tivra_admin_users", users);
+  }, [users]);
 
-  const totalActiveEmployees = activeEmployees.length;
+  useEffect(() => {
+    if (activities.length) writeStorage("tivra_admin_activity", activities);
+  }, [activities]);
+
+  useEffect(() => {
+    writeStorage("tivra_admin_settings", settings);
+  }, [settings]);
+
+  const activeUsers = users.filter((user) => user.status === "ACTIVE").length;
+  const inactiveUsers = users.filter((user) => user.status === "INACTIVE").length;
+  const suspendedUsers = users.filter(
+    (user) => user.status === "SUSPENDED"
+  ).length;
+
+  const filteredUsers = useMemo(() => {
+    const query = search.toLowerCase().trim();
+
+    return users.filter((user) => {
+      const matchesSearch =
+        !query ||
+        user.name.toLowerCase().includes(query) ||
+        user.email.toLowerCase().includes(query) ||
+        user.role.toLowerCase().includes(query) ||
+        user.department.toLowerCase().includes(query) ||
+        user.id.toLowerCase().includes(query);
+
+      const matchesStatus =
+        statusFilter === "ALL" || user.status === statusFilter;
+
+      const matchesRole = roleFilter === "ALL" || user.role === roleFilter;
+
+      return matchesSearch && matchesStatus && matchesRole;
+    });
+  }, [users, search, statusFilter, roleFilter]);
+
+  const addActivity = (
+    title: string,
+    description: string,
+    type: ActivityItem["type"]
+  ) => {
+    setActivities((current) => [
+      {
+        id: Date.now(),
+        title,
+        description,
+        time: "Just now",
+        type,
+      },
+      ...current,
+    ]);
+  };
+
+  const resetUserForm = () => {
+    setUserForm({
+      name: "",
+      email: "",
+      role: "Sales Manager",
+      department: "Sales",
+      status: "ACTIVE",
+    });
+  };
+
+  const openAddUser = () => {
+    setEditingUser(null);
+    resetUserForm();
+    setShowUserForm(true);
+    setOpenMenu(null);
+  };
+
+  const openEditUser = (user: AdminUser) => {
+    setEditingUser(user);
+    setUserForm({
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      department: user.department,
+      status: user.status,
+    });
+    setShowUserForm(true);
+    setOpenMenu(null);
+  };
+
+  const saveUser = () => {
+    if (!userForm.name.trim()) {
+      alert("Please enter user name.");
+      return;
+    }
+
+    if (!userForm.email.trim()) {
+      alert("Please enter email.");
+      return;
+    }
+
+    if (editingUser) {
+      setUsers((current) =>
+        current.map((user) =>
+          user.id === editingUser.id
+            ? {
+                ...user,
+                name: userForm.name.trim(),
+                email: userForm.email.trim(),
+                role: userForm.role,
+                department: userForm.department,
+                status: userForm.status,
+              }
+            : user
+        )
+      );
+
+      addActivity(
+        "Admin user updated",
+        `${userForm.name.trim()} user profile was updated.`,
+        "user"
+      );
+      alert("User updated successfully.");
+    } else {
+      const newUser: AdminUser = {
+        id: `ADM-${String(users.length + 1).padStart(3, "0")}-${Date.now()
+          .toString()
+          .slice(-4)}`,
+        name: userForm.name.trim(),
+        email: userForm.email.trim(),
+        role: userForm.role,
+        department: userForm.department,
+        status: userForm.status,
+        lastLogin: "Never",
+      };
+
+      setUsers((current) => [newUser, ...current]);
+
+      addActivity(
+        "New admin user created",
+        `${newUser.name} was added to the admin directory.`,
+        "user"
+      );
+      alert("User added successfully.");
+    }
+
+    setShowUserForm(false);
+    setEditingUser(null);
+    resetUserForm();
+  };
+
+  const deleteUser = (user: AdminUser) => {
+    if (user.role === "Administrator") {
+      alert("Administrator account cannot be deleted from this panel.");
+      return;
+    }
+
+    const confirmed = window.confirm(`Delete ${user.name}?`);
+    if (!confirmed) return;
+
+    setUsers((current) => current.filter((item) => item.id !== user.id));
+
+    addActivity(
+      "Admin user deleted",
+      `${user.name} was removed from the admin directory.`,
+      "security"
+    );
+
+    setOpenMenu(null);
+  };
+
+  const toggleStatus = (user: AdminUser) => {
+    if (user.role === "Administrator") {
+      alert("Administrator status cannot be changed here.");
+      return;
+    }
+
+    const nextStatus: AdminUserStatus =
+      user.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+
+    setUsers((current) =>
+      current.map((item) =>
+        item.id === user.id
+          ? {
+              ...item,
+              status: nextStatus,
+            }
+          : item
+      )
+    );
+
+    addActivity(
+      "User status changed",
+      `${user.name} is now ${nextStatus.toLowerCase()}.`,
+      "user"
+    );
+
+    setOpenMenu(null);
+  };
+
+  const suspendUser = (user: AdminUser) => {
+    if (user.role === "Administrator") {
+      alert("Administrator account cannot be suspended here.");
+      return;
+    }
+
+    setUsers((current) =>
+      current.map((item) =>
+        item.id === user.id
+          ? {
+              ...item,
+              status: "SUSPENDED",
+            }
+          : item
+      )
+    );
+
+    addActivity(
+      "User suspended",
+      `${user.name} was suspended by an administrator.`,
+      "security"
+    );
+
+    setOpenMenu(null);
+  };
+
+  const runBackup = () => {
+    setBackupStatus("Backup in progress...");
+    setTimeout(() => {
+      setBackupStatus("Last backup: Just now");
+      addActivity(
+        "Backup completed",
+        "Application data backup completed successfully.",
+        "database"
+      );
+      alert("Backup completed successfully.");
+    }, 800);
+  };
+
+  const runSync = () => {
+    if (syncing) return;
+
+    setSyncing(true);
+
+    setTimeout(() => {
+      setSyncing(false);
+
+      addActivity(
+        "System synchronization",
+        "Admin-triggered CRM synchronization completed.",
+        "system"
+      );
+
+      alert("System synchronization completed.");
+    }, 1000);
+  };
+
+  const saveSystemSettings = () => {
+    setSavingSettings(true);
+
+    setTimeout(() => {
+      setSavingSettings(false);
+
+      addActivity(
+        "System settings updated",
+        "Administrative system settings were saved.",
+        "system"
+      );
+
+      alert("System settings saved successfully.");
+    }, 500);
+  };
+
+  const exportUsers = () => {
+    const rows = [
+      ["ID", "Name", "Email", "Role", "Department", "Status", "Last Login"],
+      ...users.map((user) => [
+        user.id,
+        user.name,
+        user.email,
+        user.role,
+        user.department,
+        user.status,
+        user.lastLogin,
+      ]),
+    ];
+
+    const csv = rows
+      .map((row) =>
+        row
+          .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
+          .join(",")
+      )
+      .join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "tivra-admin-users.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+
+    addActivity(
+      "Admin user export",
+      "Admin user directory was exported to CSV.",
+      "system"
+    );
+  };
 
   return (
-    <div className="min-h-screen bg-[#080b12] text-white">
-      <div className="p-6 lg:p-8">
-
-        {/* ==========================================
-            HEADER
-            ========================================== */}
-
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-
-          <div>
-            <div className="flex items-center gap-3">
-
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-500/10">
-                <Shield className="h-6 w-6 text-blue-400" />
-              </div>
-
-              <div>
-                <h1 className="text-2xl font-bold">
-                  Admin Panel
-                </h1>
-
-                <p className="text-sm text-gray-400">
-                  Manage roles, employees and system permissions
-                </p>
-              </div>
-
+    <div
+      className="min-h-screen bg-[#09090b] text-white"
+      onClick={() => setOpenMenu(null)}
+    >
+      <div className="space-y-6 p-4 md:p-6 lg:p-8">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-blue-500/20 bg-blue-500/10">
+              <ShieldCheck className="h-5 w-5 text-blue-400" />
             </div>
-          </div>
-
-          <button
-            onClick={openCreateModal}
-            className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold transition hover:bg-blue-500"
-          >
-            <Plus className="h-4 w-4" />
-            Create Role
-          </button>
-
-        </div>
-
-        {/* ==========================================
-            STATS
-            ========================================== */}
-
-        <div className="mt-7 grid grid-cols-1 gap-4 sm:grid-cols-3">
-
-          <StatCard
-            icon={<Shield className="h-5 w-5" />}
-            title="Total Roles"
-            value={roles.length}
-          />
-
-          <StatCard
-            icon={<Users className="h-5 w-5" />}
-            title="Active Employees"
-            value={totalActiveEmployees}
-          />
-
-          <StatCard
-            icon={<Lock className="h-5 w-5" />}
-            title="System Roles"
-            value={roles.filter((role) => role.system).length}
-          />
-
-        </div>
-
-        {/* ==========================================
-            SEARCH
-            ========================================== */}
-
-        <div className="mt-7 rounded-2xl border border-white/10 bg-[#0d111a] p-4">
-
-          <div className="relative">
-
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search roles..."
-              className="w-full rounded-xl border border-white/10 bg-[#080b12] py-3 pl-10 pr-4 text-sm text-white outline-none placeholder:text-gray-500 focus:border-blue-500"
-            />
-
-          </div>
-
-        </div>
-
-        {/* ==========================================
-            ROLE CARDS
-            ========================================== */}
-
-        <div className="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-2">
-
-          {filteredRoles.map((role) => {
-
-            const roleEmployees =
-              getRoleEmployees(role.id);
-
-            return (
-              <div
-                key={role.id}
-                className="rounded-2xl border border-white/10 bg-[#0d111a] p-5"
-              >
-
-                {/* Role Header */}
-
-                <div className="flex items-start justify-between gap-4">
-
-                  <div className="flex items-start gap-3">
-
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-500/10">
-                      <Shield className="h-5 w-5 text-blue-400" />
-                    </div>
-
-                    <div>
-
-                      <div className="flex flex-wrap items-center gap-2">
-
-                        <h2 className="font-semibold">
-                          {role.name}
-                        </h2>
-
-                        {role.system && (
-                          <span className="rounded-full border border-purple-500/20 bg-purple-500/10 px-2 py-1 text-[10px] font-medium text-purple-300">
-                            SYSTEM
-                          </span>
-                        )}
-
-                      </div>
-
-                      <p className="mt-1 text-sm text-gray-400">
-                        {role.description}
-                      </p>
-
-                    </div>
-
-                  </div>
-
-                  <div className="flex shrink-0 items-center gap-2">
-
-                    <button
-                      onClick={() => openEditModal(role)}
-                      className="rounded-lg border border-white/10 p-2 text-gray-400 transition hover:bg-white/5 hover:text-white"
-                      title="Edit Role"
-                    >
-                      <Edit3 className="h-4 w-4" />
-                    </button>
-
-                    <button
-                      onClick={() => deleteRole(role)}
-                      disabled={role.system}
-                      className={`rounded-lg border border-white/10 p-2 transition ${
-                        role.system
-                          ? "cursor-not-allowed text-gray-700"
-                          : "text-gray-400 hover:bg-red-500/10 hover:text-red-400"
-                      }`}
-                      title="Delete Role"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-
-                  </div>
-
-                </div>
-
-                {/* ==========================================
-                    ASSIGNED EMPLOYEES
-                    ========================================== */}
-
-                <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.02] p-4">
-
-                  <div className="flex items-center justify-between gap-3">
-
-                    <div>
-
-                      <div className="flex items-center gap-2">
-
-                        <Users className="h-4 w-4 text-blue-400" />
-
-                        <span className="text-sm font-medium">
-                          Assigned Employees
-                        </span>
-
-                      </div>
-
-                      <p className="mt-1 text-xs text-gray-500">
-                        {roleEmployees.length} employee
-                        {roleEmployees.length !== 1 ? "s" : ""} assigned
-                      </p>
-
-                    </div>
-
-                    <button
-                      onClick={() => openAssignModal(role)}
-                      className="flex items-center gap-2 rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-xs font-medium text-blue-300 transition hover:bg-blue-500/20"
-                    >
-                      <UserPlus className="h-4 w-4" />
-                      Assign Employee
-                    </button>
-
-                  </div>
-
-                  {roleEmployees.length > 0 ? (
-
-                    <div className="mt-3 flex flex-wrap gap-2">
-
-                      {roleEmployees
-                        .slice(0, 4)
-                        .map((employee) => (
-
-                          <div
-                            key={employee.id}
-                            className="flex items-center gap-2 rounded-lg border border-white/10 bg-[#080b12] px-2.5 py-2"
-                          >
-
-                            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-500/10 text-xs font-semibold text-blue-300">
-                              {employee.name
-                                .split(" ")
-                                .map((part) => part[0])
-                                .join("")
-                                .slice(0, 2)}
-                            </div>
-
-                            <span className="text-xs text-gray-300">
-                              {employee.name}
-                            </span>
-
-                          </div>
-
-                        ))}
-
-                      {roleEmployees.length > 4 && (
-
-                        <div className="flex items-center rounded-lg border border-white/10 bg-[#080b12] px-3 py-2 text-xs text-gray-500">
-                          +{roleEmployees.length - 4} more
-                        </div>
-
-                      )}
-
-                    </div>
-
-                  ) : (
-
-                    <div className="mt-3 rounded-lg border border-dashed border-white/10 p-3 text-center">
-
-                      <p className="text-xs text-gray-500">
-                        No employees assigned to this role.
-                      </p>
-
-                    </div>
-
-                  )}
-
-                </div>
-
-                {/* ==========================================
-                    PERMISSIONS
-                    ========================================== */}
-
-                <div className="mt-4">
-
-                  <p className="mb-2 text-xs font-medium uppercase tracking-wider text-gray-500">
-                    Permissions
-                  </p>
-
-                  <div className="flex flex-wrap gap-2">
-
-                    {role.permissions
-                      .slice(0, 7)
-                      .map((permission) => (
-
-                        <span
-                          key={permission}
-                          className="rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-xs text-gray-300"
-                        >
-                          {permissionLabels[permission]}
-                        </span>
-
-                      ))}
-
-                    {role.permissions.length > 7 && (
-
-                      <span className="rounded-lg border border-blue-500/20 bg-blue-500/10 px-2.5 py-1.5 text-xs text-blue-300">
-                        +{role.permissions.length - 7} more
-                      </span>
-
-                    )}
-
-                  </div>
-
-                </div>
-
-              </div>
-            );
-
-          })}
-
-          {filteredRoles.length === 0 && (
-
-            <div className="xl:col-span-2 rounded-2xl border border-dashed border-white/10 py-16 text-center">
-
-              <Shield className="mx-auto h-10 w-10 text-gray-600" />
-
-              <p className="mt-3 text-sm text-gray-400">
-                No roles found.
+            <div>
+              <h1 className="text-2xl font-bold md:text-3xl">Admin Panel</h1>
+              <p className="text-sm text-zinc-400">
+                Manage system access, security, users and administration
               </p>
-
             </div>
-
-          )}
-
-        </div>
-
-      </div>
-
-      {/* =====================================================
-          CREATE / EDIT ROLE MODAL
-          ===================================================== */}
-
-      {showRoleModal && (
-
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-[#0d111a]">
-
-            {/* Header */}
-
-            <div className="flex items-center justify-between border-b border-white/10 p-5">
-
-              <div>
-
-                <h2 className="text-lg font-semibold">
-                  {editingRole
-                    ? "Edit Role"
-                    : "Create New Role"}
-                </h2>
-
-                <p className="mt-1 text-sm text-gray-400">
-                  Configure role access and permissions.
-                </p>
-
-              </div>
-
-              <button
-                onClick={() => setShowRoleModal(false)}
-                className="rounded-lg p-2 text-gray-400 hover:bg-white/5 hover:text-white"
-              >
-                <X className="h-5 w-5" />
-              </button>
-
-            </div>
-
-            {/* Form */}
-
-            <div className="space-y-5 p-5">
-
-              <div>
-
-                <label className="mb-2 block text-sm text-gray-300">
-                  Role Name
-                </label>
-
-                <input
-                  value={roleName}
-                  onChange={(e) =>
-                    setRoleName(e.target.value)
-                  }
-                  placeholder="Example: Sales Manager"
-                  className="w-full rounded-xl border border-white/10 bg-[#080b12] px-4 py-3 text-sm text-white outline-none placeholder:text-gray-600 focus:border-blue-500"
-                />
-
-              </div>
-
-              <div>
-
-                <label className="mb-2 block text-sm text-gray-300">
-                  Description
-                </label>
-
-                <textarea
-                  value={description}
-                  onChange={(e) =>
-                    setDescription(e.target.value)
-                  }
-                  placeholder="Describe what this role is responsible for..."
-                  rows={3}
-                  className="w-full resize-none rounded-xl border border-white/10 bg-[#080b12] px-4 py-3 text-sm text-white outline-none placeholder:text-gray-600 focus:border-blue-500"
-                />
-
-              </div>
-
-              {/* Permissions */}
-
-              <div>
-
-                <div className="mb-3 flex items-center justify-between">
-
-                  <div>
-
-                    <h3 className="text-sm font-semibold">
-                      Module Permissions
-                    </h3>
-
-                    <p className="mt-1 text-xs text-gray-500">
-                      Select the modules this role can access.
-                    </p>
-
-                  </div>
-
-                  <div className="flex gap-2">
-
-                    <button
-                      onClick={selectAllPermissions}
-                      className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-gray-300 hover:bg-white/5"
-                    >
-                      Select All
-                    </button>
-
-                    <button
-                      onClick={clearPermissions}
-                      className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-gray-400 hover:bg-white/5"
-                    >
-                      Clear
-                    </button>
-
-                  </div>
-
-                </div>
-
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-
-                  {allPermissions.map((permission) => {
-
-                    const selected =
-                      selectedPermissions.includes(
-                        permission
-                      );
-
-                    return (
-
-                      <button
-                        key={permission}
-                        onClick={() =>
-                          togglePermission(permission)
-                        }
-                        className={`flex items-center justify-between rounded-xl border p-3 text-left transition ${
-                          selected
-                            ? "border-blue-500/40 bg-blue-500/10"
-                            : "border-white/10 bg-white/[0.02] hover:bg-white/[0.04]"
-                        }`}
-                      >
-
-                        <span
-                          className={`text-sm ${
-                            selected
-                              ? "text-blue-300"
-                              : "text-gray-300"
-                          }`}
-                        >
-                          {permissionLabels[permission]}
-                        </span>
-
-                        <div
-                          className={`flex h-5 w-5 items-center justify-center rounded-md border ${
-                            selected
-                              ? "border-blue-500 bg-blue-500"
-                              : "border-gray-600"
-                          }`}
-                        >
-
-                          {selected && (
-                            <Check className="h-3.5 w-3.5 text-white" />
-                          )}
-
-                        </div>
-
-                      </button>
-
-                    );
-                  })}
-
-                </div>
-
-              </div>
-
-            </div>
-
-            {/* Footer */}
-
-            <div className="flex justify-end gap-3 border-t border-white/10 p-5">
-
-              <button
-                onClick={() => setShowRoleModal(false)}
-                className="rounded-xl border border-white/10 px-5 py-2.5 text-sm text-gray-300 hover:bg-white/5"
-              >
-                Cancel
-              </button>
-
-              <button
-                onClick={saveRole}
-                className="flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold hover:bg-blue-500"
-              >
-                <Save className="h-4 w-4" />
-
-                {editingRole
-                  ? "Save Changes"
-                  : "Create Role"}
-              </button>
-
-            </div>
-
           </div>
-
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={(event) => {
+                event.stopPropagation();
+                runSync();
+              }}
+              className="inline-flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-2.5 text-sm font-semibold hover:bg-zinc-800"
+            >
+              <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
+              {syncing ? "Syncing..." : "Sync System"}
+            </button>
+            <button
+              onClick={(event) => {
+                event.stopPropagation();
+                runBackup();
+              }}
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold hover:bg-blue-500"
+            >
+              <Database className="h-4 w-4" />
+              Backup Now
+            </button>
+          </div>
         </div>
 
-      )}
+        <div className="flex gap-2 border-b border-zinc-800">
+          <TabButton active={activeTab === "overview"} onClick={() => setActiveTab("overview")}>
+            <Activity className="h-4 w-4" />
+            Overview
+          </TabButton>
+          <TabButton active={activeTab === "users"} onClick={() => setActiveTab("users")}>
+            <Users className="h-4 w-4" />
+            Admin Users
+          </TabButton>
+          <TabButton active={activeTab === "system"} onClick={() => setActiveTab("system")}>
+            <Settings2 className="h-4 w-4" />
+            System Settings
+          </TabButton>
+        </div>
 
-      {/* =====================================================
-          ASSIGN EMPLOYEE MODAL
-          ===================================================== */}
+        {activeTab === "overview" && (
+          <>
+            <section className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+              <MetricCard label="Total Admin Users" value={users.length} helper={`${activeUsers} active`} icon={Users} iconClass="bg-blue-500/10 text-blue-400" />
+              <MetricCard label="Active Users" value={activeUsers} helper="Current active access" icon={UserCheck} iconClass="bg-emerald-500/10 text-emerald-400" />
+              <MetricCard label="Suspended" value={suspendedUsers} helper={`${inactiveUsers} inactive`} icon={UserX} iconClass="bg-red-500/10 text-red-400" />
+              <MetricCard label="Security Status" value={settings.twoFactorRequired ? "2FA ON" : "Standard"} helper={settings.loginAlerts ? "Login alerts enabled" : "Login alerts disabled"} icon={LockKeyhole} iconClass="bg-indigo-500/10 text-indigo-400" />
+            </section>
 
-      {showAssignModal && assigningRole && (
+            <section className="grid gap-4 lg:grid-cols-3">
+              <HealthCard icon={Server} title="Application" status="Operational" description="Frontend services are running normally." />
+              <HealthCard icon={Database} title="Database" status="Connected" description="Local demo data store is available." />
+              <HealthCard icon={Bell} title="Notifications" status="Enabled" description="Notification preferences are active." />
+            </section>
 
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-hidden rounded-2xl border border-white/10 bg-[#0d111a]">
-
-            {/* Modal Header */}
-
-            <div className="flex items-center justify-between border-b border-white/10 p-5">
-
-              <div className="flex items-center gap-3">
-
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
-                  <UserPlus className="h-5 w-5 text-blue-400" />
-                </div>
-
-                <div>
-
-                  <h2 className="text-lg font-semibold">
-                    Assign Employee
-                  </h2>
-
-                  <p className="text-sm text-gray-400">
-
-                    Role:{" "}
-
-                    <span className="text-blue-300">
-                      {assigningRole.name}
-                    </span>
-
-                  </p>
-
-                </div>
-
+            <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5">
+              <div>
+                <h2 className="font-semibold">Quick Admin Actions</h2>
+                <p className="mt-1 text-sm text-zinc-500">Frequently used system administration controls.</p>
               </div>
-
-              <button
-                onClick={() =>
-                  setShowAssignModal(false)
-                }
-                className="rounded-lg p-2 text-gray-400 hover:bg-white/5 hover:text-white"
-              >
-                <X className="h-5 w-5" />
-              </button>
-
-            </div>
-
-            {/* Assignment Summary */}
-
-            <div className="border-b border-white/10 p-5">
-
-              <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4">
-
-                <div className="flex items-center justify-between">
-
-                  <div>
-
-                    <p className="text-sm font-medium">
-                      Selected Employees
-                    </p>
-
-                    <p className="mt-1 text-xs text-gray-500">
-                      Select employees who should have this role.
-                    </p>
-
-                  </div>
-
-                  <div className="text-2xl font-bold text-blue-400">
-                    {selectedEmployeeIds.length}
-                  </div>
-
-                </div>
-
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <QuickAction icon={<UserCheck className="h-5 w-5" />} title="Manage Users" description="Add or update admin users" onClick={() => setActiveTab("users")} />
+                <QuickAction icon={<Settings2 className="h-5 w-5" />} title="System Settings" description="Configure admin preferences" onClick={() => setActiveTab("system")} />
+                <QuickAction icon={<Download className="h-5 w-5" />} title="Export Users" description="Download user directory" onClick={exportUsers} />
+                <QuickAction icon={<Database className="h-5 w-5" />} title="Run Backup" description="Create latest data backup" onClick={runBackup} />
               </div>
+            </section>
 
-              {/* Search */}
-
-              <div className="relative mt-4">
-
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-
-                <input
-                  value={employeeSearch}
-                  onChange={(e) =>
-                    setEmployeeSearch(e.target.value)
-                  }
-                  placeholder="Search employees..."
-                  className="w-full rounded-xl border border-white/10 bg-[#080b12] py-3 pl-10 pr-4 text-sm text-white outline-none placeholder:text-gray-500 focus:border-blue-500"
-                />
-
+            <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70">
+              <div className="border-b border-zinc-800 p-5">
+                <h2 className="font-semibold">Recent Admin Activity</h2>
+                <p className="mt-1 text-sm text-zinc-500">Latest administration and security events</p>
               </div>
-
-              {/* Select buttons */}
-
-              <div className="mt-3 flex gap-2">
-
-                <button
-                  onClick={selectAllEmployees}
-                  className="rounded-lg border border-white/10 px-3 py-2 text-xs text-gray-300 hover:bg-white/5"
-                >
-                  Select All
-                </button>
-
-                <button
-                  onClick={clearVisibleEmployees}
-                  className="rounded-lg border border-white/10 px-3 py-2 text-xs text-gray-400 hover:bg-white/5"
-                >
-                  Clear Visible
-                </button>
-
-              </div>
-
-            </div>
-
-            {/* Employee List */}
-
-            <div className="max-h-[430px] overflow-y-auto p-5">
-
-              <div className="space-y-2">
-
-                {filteredEmployees.map((employee) => {
-
-                  const selected =
-                    selectedEmployeeIds.includes(
-                      employee.id
-                    );
-
-                  const currentRole = roles.find(
-                    (role) =>
-                      role.id === employee.roleId
-                  );
-
+              <div className="divide-y divide-zinc-800">
+                {activities.slice(0, 8).map((item) => {
+                  const Icon = activityIcon(item.type);
                   return (
-
-                    <button
-                      key={employee.id}
-                      onClick={() =>
-                        toggleEmployee(employee.id)
-                      }
-                      className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition ${
-                        selected
-                          ? "border-blue-500/40 bg-blue-500/10"
-                          : "border-white/10 bg-white/[0.02] hover:bg-white/[0.04]"
-                      }`}
-                    >
-
-                      {/* Checkbox */}
-
-                      <div
-                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
-                          selected
-                            ? "border-blue-500 bg-blue-500"
-                            : "border-gray-600"
-                        }`}
-                      >
-
-                        {selected && (
-                          <Check className="h-3.5 w-3.5 text-white" />
-                        )}
-
+                    <div key={item.id} className="flex gap-3 p-5 transition hover:bg-zinc-800/20">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400">
+                        <Icon className="h-4 w-4" />
                       </div>
-
-                      {/* Avatar */}
-
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-500/10 text-sm font-semibold text-blue-300">
-
-                        {employee.name
-                          .split(" ")
-                          .map((part) => part[0])
-                          .join("")
-                          .slice(0, 2)}
-
-                      </div>
-
-                      {/* Employee Details */}
-
                       <div className="min-w-0 flex-1">
-
-                        <div className="flex flex-wrap items-center gap-2">
-
-                          <p className="truncate text-sm font-medium text-white">
-                            {employee.name}
-                          </p>
-
-                          {selected && (
-
-                            <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] text-blue-300">
-                              SELECTED
-                            </span>
-
-                          )}
-
+                        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                          <p className="text-sm font-medium">{item.title}</p>
+                          <span className="flex items-center gap-1 text-xs text-zinc-500"><Clock3 className="h-3.5 w-3.5" />{item.time}</span>
                         </div>
-
-                        <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-gray-500">
-
-                          <span className="flex items-center gap-1">
-                            <Mail className="h-3 w-3" />
-                            {employee.email}
-                          </span>
-
-                          <span>
-                            {employee.department}
-                          </span>
-
-                        </div>
-
+                        <p className="mt-1 text-sm text-zinc-500">{item.description}</p>
                       </div>
-
-                      {/* Current Role */}
-
-                      <div className="hidden text-right sm:block">
-
-                        <p className="text-[10px] uppercase tracking-wider text-gray-600">
-                          Current Role
-                        </p>
-
-                        <p className="mt-1 text-xs text-gray-400">
-                          {currentRole?.name ||
-                            "Unassigned"}
-                        </p>
-
-                      </div>
-
-                    </button>
-
+                    </div>
                   );
                 })}
-
-                {filteredEmployees.length === 0 && (
-
-                  <div className="py-12 text-center">
-
-                    <Users className="mx-auto h-9 w-9 text-gray-600" />
-
-                    <p className="mt-3 text-sm text-gray-400">
-                      No active employees found.
-                    </p>
-
-                  </div>
-
-                )}
-
               </div>
+            </section>
+          </>
+        )}
 
+        {activeTab === "users" && (
+          <>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold">Admin Users</h2>
+                <p className="text-sm text-zinc-500">Control administrator-level user access.</p>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={exportUsers} className="inline-flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-2.5 text-sm font-semibold hover:bg-zinc-800"><Download className="h-4 w-4" />Export CSV</button>
+                <button onClick={openAddUser} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold hover:bg-blue-500"><Plus className="h-4 w-4" />Add Admin User</button>
+              </div>
             </div>
 
-            {/* Footer */}
-
-            <div className="flex items-center justify-between border-t border-white/10 p-5">
-
-              <div className="flex items-center gap-2 text-xs text-gray-500">
-
-                <UserCheck className="h-4 w-4" />
-
-                {selectedEmployeeIds.length} employee
-                {selectedEmployeeIds.length !== 1
-                  ? "s"
-                  : ""}{" "}
-                selected
-
+            <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                  <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search users..." className="w-full rounded-xl border border-zinc-800 bg-zinc-950 py-3 pl-10 pr-4 text-sm outline-none focus:border-blue-500" />
+                </div>
+                <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-3 text-sm outline-none">
+                  <option value="ALL">All Roles</option>
+                  {roles.map((role) => <option key={role} value={role}>{role}</option>)}
+                </select>
+                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as "ALL" | AdminUserStatus)} className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-3 text-sm outline-none">
+                  <option value="ALL">All Status</option><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option><option value="SUSPENDED">Suspended</option>
+                </select>
               </div>
+            </section>
 
-              <div className="flex gap-3">
-
-                <button
-                  onClick={() =>
-                    setShowAssignModal(false)
-                  }
-                  className="rounded-xl border border-white/10 px-5 py-2.5 text-sm text-gray-300 hover:bg-white/5"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  onClick={saveAssignments}
-                  className="flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold hover:bg-blue-500"
-                >
-                  <Save className="h-4 w-4" />
-                  Save Assignment
-                </button>
-
+            <section className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/70">
+              <div className="border-b border-zinc-800 p-5"><h3 className="font-semibold">User Directory</h3><p className="mt-1 text-xs text-zinc-500">{filteredUsers.length} users found</p></div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1000px]">
+                  <thead className="bg-zinc-950/70"><tr className="text-left text-xs uppercase tracking-wide text-zinc-500"><th className="px-5 py-4">User</th><th className="px-5 py-4">Role</th><th className="px-5 py-4">Department</th><th className="px-5 py-4">Status</th><th className="px-5 py-4">Last Login</th><th className="px-5 py-4 text-right">Action</th></tr></thead>
+                  <tbody className="divide-y divide-zinc-800">
+                    {filteredUsers.map((user) => (
+                      <tr key={user.id} className="hover:bg-zinc-800/20">
+                        <td className="px-5 py-4"><div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-full border border-blue-500/20 bg-blue-500/10 text-sm font-semibold text-blue-400">{getInitials(user.name)}</div><div><p className="font-medium">{user.name}</p><p className="mt-1 text-xs text-zinc-500">{user.email}</p><p className="mt-1 text-[11px] text-zinc-600">{user.id}</p></div></div></td>
+                        <td className="px-5 py-4"><span className="inline-flex rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-xs text-blue-300">{user.role}</span></td>
+                        <td className="px-5 py-4 text-sm text-zinc-300">{user.department}</td>
+                        <td className="px-5 py-4"><StatusBadge status={user.status} /></td>
+                        <td className="px-5 py-4 text-sm text-zinc-400">{user.lastLogin}</td>
+                        <td className="relative px-5 py-4 text-right">
+                          <button onClick={(e) => { e.stopPropagation(); setOpenMenu(openMenu === user.id ? null : user.id); }} className="rounded-lg p-2 hover:bg-zinc-800"><MoreVertical className="h-4 w-4" /></button>
+                          {openMenu === user.id && <div onClick={(e) => e.stopPropagation()} className="absolute right-5 top-12 z-40 w-48 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl">
+                            <ActionButton icon={<Eye className="h-4 w-4" />} label="View Details" onClick={() => { setSelectedUser(user); setShowUserView(true); setOpenMenu(null); }} />
+                            <ActionButton icon={<Pencil className="h-4 w-4" />} label="Edit User" onClick={() => openEditUser(user)} />
+                            <ActionButton icon={user.status === "ACTIVE" ? <XCircle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />} label={user.status === "ACTIVE" ? "Make Inactive" : "Make Active"} onClick={() => toggleStatus(user)} />
+                            {user.role !== "Administrator" && user.status !== "SUSPENDED" && <ActionButton icon={<LockKeyhole className="h-4 w-4" />} label="Suspend User" onClick={() => suspendUser(user)} />}
+                            <ActionButton danger icon={<Trash2 className="h-4 w-4" />} label="Delete User" onClick={() => deleteUser(user)} />
+                          </div>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {filteredUsers.length === 0 && <EmptyState icon={<Users className="h-10 w-10" />} title="No users found" description="Try changing your search or filters." />}
               </div>
+            </section>
+          </>
+        )}
 
-            </div>
+        {activeTab === "system" && (
+          <>
+            <section className="grid gap-4 lg:grid-cols-2">
+              <SettingCard icon={AlertTriangle} title="Maintenance Mode" description="Temporarily restrict normal user access while system work is in progress." enabled={settings.maintenanceMode} onChange={(value) => setSettings((current) => ({ ...current, maintenanceMode: value }))} danger />
+              <SettingCard icon={Mail} title="Email Notifications" description="Allow TIVRA to generate administrative email alerts." enabled={settings.emailNotifications} onChange={(value) => setSettings((current) => ({ ...current, emailNotifications: value }))} />
+              <SettingCard icon={Bell} title="Login Alerts" description="Show or record notifications when an administrator logs in." enabled={settings.loginAlerts} onChange={(value) => setSettings((current) => ({ ...current, loginAlerts: value }))} />
+              <SettingCard icon={Database} title="Automatic Backup" description="Keep automatic backup enabled for routine data protection." enabled={settings.autoBackup} onChange={(value) => setSettings((current) => ({ ...current, autoBackup: value }))} />
+              <SettingCard icon={KeyRound} title="Require Two-Factor Authentication" description="Require additional sign-in verification for administrator accounts." enabled={settings.twoFactorRequired} onChange={(value) => setSettings((current) => ({ ...current, twoFactorRequired: value }))} />
+            </section>
 
-          </div>
+            <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5"><div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"><div className="flex items-start gap-3"><div className="rounded-xl bg-emerald-500/10 p-3 text-emerald-400"><Database className="h-5 w-5" /></div><div><h3 className="font-semibold">Data Backup</h3><p className="mt-1 text-sm text-zinc-500">Create a frontend demo backup event.</p><p className="mt-2 text-xs text-zinc-400">{backupStatus}</p></div></div><button onClick={runBackup} className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-sm font-semibold hover:bg-zinc-700"><Database className="h-4 w-4" />Run Backup</button></div></section>
 
-        </div>
+            <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5"><div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"><div className="flex items-start gap-3"><div className="rounded-xl bg-blue-500/10 p-3 text-blue-400"><RefreshCw className="h-5 w-5" /></div><div><h3 className="font-semibold">System Synchronization</h3><p className="mt-1 text-sm text-zinc-500">Trigger a frontend demo sync event.</p></div></div><button onClick={runSync} disabled={syncing} className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"><RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />{syncing ? "Synchronizing..." : "Synchronize Now"}</button></div></section>
 
-      )}
+            <div className="flex justify-end gap-3"><button onClick={() => setSettings({ maintenanceMode: false, emailNotifications: true, loginAlerts: true, autoBackup: true, twoFactorRequired: false })} className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 px-5 py-2.5 text-sm font-semibold hover:bg-zinc-800"><RotateCcw className="h-4 w-4" />Reset</button><button onClick={saveSystemSettings} disabled={savingSettings} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold hover:bg-blue-500 disabled:opacity-60"><Save className="h-4 w-4" />{savingSettings ? "Saving..." : "Save Settings"}</button></div>
+          </>
+        )}
+      </div>
 
+      {showUserForm && <ModalOverlay onClose={() => { setShowUserForm(false); setEditingUser(null); }}><div className="w-full max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-950 shadow-2xl"><ModalHeader title={editingUser ? "Edit Admin User" : "Add Admin User"} subtitle="Manage administrator directory information." onClose={() => { setShowUserForm(false); setEditingUser(null); }} /><div className="space-y-5 p-6"><div className="grid gap-4 md:grid-cols-2"><Input label="Full Name" value={userForm.name} onChange={(value) => setUserForm((current) => ({ ...current, name: value }))} placeholder="Enter user name" /><Input label="Email" type="email" value={userForm.email} onChange={(value) => setUserForm((current) => ({ ...current, email: value }))} placeholder="user@company.com" /><SelectField label="Role" value={userForm.role} options={roles} onChange={(value) => setUserForm((current) => ({ ...current, role: value }))} /><SelectField label="Department" value={userForm.department} options={departments} onChange={(value) => setUserForm((current) => ({ ...current, department: value }))} /><SelectField label="Status" value={userForm.status} options={["ACTIVE", "INACTIVE", "SUSPENDED"]} displayLabels={{ ACTIVE: "Active", INACTIVE: "Inactive", SUSPENDED: "Suspended" }} onChange={(value) => setUserForm((current) => ({ ...current, status: value as AdminUserStatus }))} /></div>{userForm.role === "Administrator" && <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-300">Administrator accounts have full access. Use this role carefully.</div>}<div className="flex justify-end gap-3 border-t border-zinc-800 pt-5"><button onClick={() => { setShowUserForm(false); setEditingUser(null); }} className="rounded-xl border border-zinc-700 px-5 py-2.5 text-sm font-semibold hover:bg-zinc-800">Cancel</button><button onClick={saveUser} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold hover:bg-blue-500"><Save className="h-4 w-4" />{editingUser ? "Save Changes" : "Create User"}</button></div></div></div></ModalOverlay>}
+
+      {showUserView && selectedUser && <ModalOverlay onClose={() => setShowUserView(false)}><div className="w-full max-w-xl rounded-2xl border border-zinc-800 bg-zinc-950 shadow-2xl"><ModalHeader title="Admin User Details" subtitle={selectedUser.id} onClose={() => setShowUserView(false)} /><div className="space-y-5 p-6"><div className="flex items-center gap-4 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5"><div className="flex h-14 w-14 items-center justify-center rounded-full border border-blue-500/20 bg-blue-500/10 text-lg font-bold text-blue-400">{getInitials(selectedUser.name)}</div><div className="min-w-0"><h3 className="text-lg font-bold">{selectedUser.name}</h3><p className="mt-1 truncate text-sm text-zinc-500">{selectedUser.email}</p></div><div className="ml-auto"><StatusBadge status={selectedUser.status} /></div></div><div className="grid gap-3 sm:grid-cols-2"><InfoBox icon={<ShieldCheck className="h-4 w-4" />} label="Role" value={selectedUser.role} /><InfoBox icon={<Users className="h-4 w-4" />} label="Department" value={selectedUser.department} /><InfoBox icon={<Clock3 className="h-4 w-4" />} label="Last Login" value={selectedUser.lastLogin} /><InfoBox icon={<KeyRound className="h-4 w-4" />} label="Access" value={selectedUser.role === "Administrator" ? "Full admin access" : "Role-based access"} /></div><div className="flex justify-end gap-3"><button onClick={() => { setShowUserView(false); openEditUser(selectedUser); }} className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 px-5 py-2.5 text-sm font-semibold hover:bg-zinc-800"><Pencil className="h-4 w-4" />Edit User</button><button onClick={() => setShowUserView(false)} className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold hover:bg-blue-500">Close</button></div></div></div></ModalOverlay>}
     </div>
   );
 }
 
-function StatCard({
-  icon,
-  title,
-  value,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  value: number;
-}) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-[#0d111a] p-5">
+function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return <button onClick={onClick} className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition ${active ? "border-blue-500 text-blue-400" : "border-transparent text-zinc-500 hover:text-white"}`}>{children}</button>;
+}
 
-      <div className="flex items-center justify-between">
+function MetricCard({ label, value, helper, icon: Icon, iconClass }: { label: string; value: string | number; helper: string; icon: React.ElementType; iconClass: string }) {
+  return <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5"><div className="flex items-start justify-between"><div><p className="text-xs text-zinc-500">{label}</p><p className="mt-2 text-2xl font-bold">{value}</p><p className="mt-1 text-xs text-zinc-500">{helper}</p></div><div className={`rounded-xl p-3 ${iconClass}`}><Icon className="h-5 w-5" /></div></div></div>;
+}
 
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400">
-          {icon}
-        </div>
+function HealthCard({ icon: Icon, title, status, description }: { icon: React.ElementType; title: string; status: string; description: string }) {
+  return <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5"><div className="flex items-center gap-3"><div className="rounded-xl bg-emerald-500/10 p-3 text-emerald-400"><Icon className="h-5 w-5" /></div><div><p className="font-semibold">{title}</p><p className="mt-1 text-xs text-emerald-400">{status}</p></div><CheckCircle2 className="ml-auto h-5 w-5 text-emerald-400" /></div><p className="mt-4 text-sm leading-6 text-zinc-500">{description}</p></div>;
+}
 
-        <span className="text-2xl font-bold">
-          {value}
-        </span>
+function QuickAction({ icon, title, description, onClick }: { icon: React.ReactNode; title: string; description: string; onClick: () => void }) {
+  return <button onClick={onClick} className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-left transition hover:border-blue-500/30 hover:bg-zinc-900"><div className="flex items-center gap-3"><div className="rounded-xl bg-blue-500/10 p-2 text-blue-400">{icon}</div><div><p className="text-sm font-semibold">{title}</p><p className="mt-1 text-xs text-zinc-500">{description}</p></div></div></button>;
+}
 
-      </div>
+function StatusBadge({ status }: { status: AdminUserStatus }) {
+  const styles: Record<AdminUserStatus, string> = { ACTIVE: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300", INACTIVE: "border-zinc-700 bg-zinc-800 text-zinc-400", SUSPENDED: "border-red-500/20 bg-red-500/10 text-red-300" };
+  const labels: Record<AdminUserStatus, string> = { ACTIVE: "Active", INACTIVE: "Inactive", SUSPENDED: "Suspended" };
+  return <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-medium ${styles[status]}`}>{labels[status]}</span>;
+}
 
-      <p className="mt-4 text-sm text-gray-400">
-        {title}
-      </p>
+function ActionButton({ icon, label, onClick, danger = false }: { icon: React.ReactNode; label: string; onClick: () => void; danger?: boolean }) {
+  return <button onClick={onClick} className={`flex w-full items-center gap-2 px-4 py-3 text-left text-sm transition ${danger ? "text-red-400 hover:bg-red-500/10" : "text-zinc-300 hover:bg-zinc-800"}`}>{icon}{label}</button>;
+}
 
-    </div>
-  );
+function SettingCard({ icon: Icon, title, description, enabled, onChange, danger = false }: { icon: React.ElementType; title: string; description: string; enabled: boolean; onChange: (value: boolean) => void; danger?: boolean }) {
+  return <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5"><div className="flex items-start gap-4"><div className={`rounded-xl p-3 ${danger ? "bg-red-500/10 text-red-400" : "bg-blue-500/10 text-blue-400"}`}><Icon className="h-5 w-5" /></div><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-4"><div><h3 className="font-semibold">{title}</h3><p className="mt-1 text-sm leading-6 text-zinc-500">{description}</p></div><button onClick={() => onChange(!enabled)} className={`relative h-6 w-11 shrink-0 rounded-full transition ${enabled ? "bg-blue-600" : "bg-zinc-700"}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${enabled ? "left-6" : "left-1"}`} /></button></div><div className="mt-4 flex items-center gap-2 text-xs">{enabled ? <><CheckCircle2 className="h-4 w-4 text-emerald-400" /><span className="text-emerald-400">Enabled</span></> : <><XCircle className="h-4 w-4 text-zinc-500" /><span className="text-zinc-500">Disabled</span></>}</div></div></div></div>;
+}
+
+function ModalOverlay({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+  return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}><div className="w-full" onClick={(e) => e.stopPropagation()}>{children}</div></div>;
+}
+
+function ModalHeader({ title, subtitle, onClose }: { title: string; subtitle: string; onClose: () => void }) {
+  return <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4"><div><h2 className="font-semibold">{title}</h2><p className="mt-1 text-xs text-zinc-500">{subtitle}</p></div><button onClick={onClose} className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-800 hover:text-white"><X className="h-4 w-4" /></button></div>;
+}
+
+function Input({ label, value, onChange, placeholder, type = "text" }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; type?: string }) {
+  return <div><label className="mb-2 block text-xs text-zinc-500">{label}</label><input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-sm outline-none focus:border-blue-500" /></div>;
+}
+
+function SelectField({ label, value, onChange, options, displayLabels = {} }: { label: string; value: string; onChange: (value: string) => void; options: string[]; displayLabels?: Record<string, string> }) {
+  return <div><label className="mb-2 block text-xs text-zinc-500">{label}</label><select value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-sm outline-none focus:border-blue-500">{options.map((option) => <option key={option} value={option}>{displayLabels[option] || option}</option>)}</select></div>;
+}
+
+function InfoBox({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4"><div className="flex items-center gap-2 text-xs text-zinc-500">{icon}{label}</div><p className="mt-2 text-sm font-medium">{value}</p></div>;
+}
+
+function EmptyState({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
+  return <div className="p-12 text-center"><div className="mx-auto w-fit text-zinc-600">{icon}</div><p className="mt-3 font-semibold">{title}</p><p className="mt-1 text-sm text-zinc-500">{description}</p></div>;
 }

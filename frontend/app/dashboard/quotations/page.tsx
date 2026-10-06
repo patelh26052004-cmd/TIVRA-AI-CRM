@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ChangeEvent } from "react";
 import { usePersistentState } from "@/lib/persistence";
 import {
   Plus,
@@ -19,6 +19,9 @@ import {
   History,
   CheckCircle2,
   XCircle,
+  Printer,
+  Download,
+  Palette,
 } from "lucide-react";
 
 type QuotationStatus =
@@ -72,6 +75,7 @@ type Quotation = {
   discount: number;
   tax: number;
   notes: string;
+  signatureDataUrl: string;
   items: QuotationItem[];
   createdAt: string;
   versions: QuotationVersion[];
@@ -118,7 +122,10 @@ const employees: Employee[] = [
 
 const statusConfig: Record<
   QuotationStatus,
-  { label: string; className: string }
+  {
+    label: string;
+    className: string;
+  }
 > = {
   DRAFT: {
     label: "Draft",
@@ -163,7 +170,7 @@ const statusConfig: Record<
 };
 
 const emptyItem = (): QuotationItem => ({
-  id: Date.now() + Math.floor(Math.random() * 10000),
+  id: Date.now() + Math.floor(Math.random() * 100000),
   name: "",
   description: "",
   quantity: 1,
@@ -188,6 +195,7 @@ const initialQuotations: Quotation[] = [
     discount: 5000,
     tax: 18,
     notes: "Includes responsive website and admin panel.",
+    signatureDataUrl: "",
     items: [
       {
         id: 1,
@@ -241,6 +249,7 @@ const initialQuotations: Quotation[] = [
     discount: 3000,
     tax: 18,
     notes: "Barcode and inventory modules included.",
+    signatureDataUrl: "",
     items: [
       {
         id: 1,
@@ -286,6 +295,7 @@ const initialQuotations: Quotation[] = [
     discount: 0,
     tax: 18,
     notes: "Healthcare website with appointment module.",
+    signatureDataUrl: "",
     items: [
       {
         id: 1,
@@ -320,11 +330,13 @@ const initialQuotations: Quotation[] = [
     assignedEmployeeId: null,
     status: "DRAFT",
     validUntil: "2026-10-20",
-    paymentTerms: "30% advance, 40% development, 30% completion",
+    paymentTerms:
+      "30% advance, 40% development, 30% completion",
     discount: 10000,
     tax: 18,
     notes:
       "ERP modules will be finalized during requirement discussion.",
+    signatureDataUrl: "",
     items: [
       {
         id: 1,
@@ -349,25 +361,31 @@ const initialQuotations: Quotation[] = [
 ];
 
 function formatCurrency(value: number) {
-  return `₹${value.toLocaleString("en-IN")}`;
+  return `₹${Math.round(value).toLocaleString("en-IN")}`;
 }
 
 function calculateSubtotal(items: QuotationItem[]) {
   return items.reduce(
     (total, item) =>
-      total + item.quantity * item.rate,
+      total +
+      Math.max(Number(item.quantity) || 0, 0) *
+        Math.max(Number(item.rate) || 0, 0),
     0
   );
 }
 
 function calculateTotal(quotation: Quotation) {
   const subtotal = calculateSubtotal(quotation.items);
-  const taxable = Math.max(
-    subtotal - quotation.discount,
+
+  const discount = Math.max(
+    Number(quotation.discount) || 0,
     0
   );
+
+  const taxable = Math.max(subtotal - discount, 0);
+
   const taxAmount =
-    (taxable * quotation.tax) / 100;
+    (taxable * (Number(quotation.tax) || 0)) / 100;
 
   return taxable + taxAmount;
 }
@@ -408,23 +426,682 @@ function getNextQuotationNumber(
   let maxNumber = 0;
 
   quotations.forEach((quotation) => {
-    const match =
-      quotation.quotationNo.match(
-        /QT-\d{4}-(\d+)/
-      );
+    const match = quotation.quotationNo.match(
+      /QT-\d{4}-(\d+)/
+    );
 
     if (match) {
-      const number = Number(match[1]);
-
-      if (number > maxNumber) {
-        maxNumber = number;
-      }
+      maxNumber = Math.max(
+        maxNumber,
+        Number(match[1])
+      );
     }
   });
 
-  return `QT-2026-${String(
+  return `QT-${new Date().getFullYear()}-${String(
     maxNumber + 1
   ).padStart(3, "0")}`;
+}
+
+type QuotationTheme =
+  | "professional"
+  | "premium"
+  | "minimal"
+  | "modern"
+  | "classic";
+
+type QuotationThemeConfig = {
+  name: string;
+  description: string;
+  primary: string;
+  secondary: string;
+  soft: string;
+  border: string;
+  text: string;
+  muted: string;
+  total: string;
+};
+
+const BRANDING = {
+  logoText: "TIVRA",
+  logoMark: "T",
+  headline: "AI Business & CRM Solutions",
+  color: "#f97316",
+  neutralText: "#0f172a",
+  mutedText: "#64748b",
+};
+
+const quotationThemes: Record<QuotationTheme, QuotationThemeConfig> = {
+  professional: {
+    name: "Professional Blue",
+    description: "Clean corporate quotation",
+    primary: "#1d4ed8",
+    secondary: "#0f172a",
+    soft: "#eff6ff",
+    border: "#bfdbfe",
+    text: "#0f172a",
+    muted: "#64748b",
+    total: "#1e40af",
+  },
+  premium: {
+    name: "Premium Dark",
+    description: "Dark luxury business style",
+    primary: "#f97316",
+    secondary: "#111827",
+    soft: "#1f2937",
+    border: "#374151",
+    text: "#f9fafb",
+    muted: "#9ca3af",
+    total: "#fb923c",
+  },
+  minimal: {
+    name: "Minimal White",
+    description: "Simple print-friendly design",
+    primary: "#334155",
+    secondary: "#0f172a",
+    soft: "#f8fafc",
+    border: "#cbd5e1",
+    text: "#0f172a",
+    muted: "#64748b",
+    total: "#0f172a",
+  },
+  modern: {
+    name: "Modern Orange",
+    description: "Bold modern business look",
+    primary: "#ea580c",
+    secondary: "#7c2d12",
+    soft: "#fff7ed",
+    border: "#fdba74",
+    text: "#431407",
+    muted: "#9a3412",
+    total: "#c2410c",
+  },
+  classic: {
+    name: "Classic GST",
+    description: "Traditional formal quotation",
+    primary: "#0f766e",
+    secondary: "#134e4a",
+    soft: "#f0fdfa",
+    border: "#99f6e4",
+    text: "#134e4a",
+    muted: "#64748b",
+    total: "#0f766e",
+  },
+};
+
+function calculateQuotationTotals(quotation: Quotation) {
+  const subtotal = calculateSubtotal(quotation.items);
+  const discount = Math.min(
+    Math.max(Number(quotation.discount) || 0, 0),
+    subtotal
+  );
+  const taxable = Math.max(subtotal - discount, 0);
+  const taxAmount =
+    (taxable * Math.max(Number(quotation.tax) || 0, 0)) / 100;
+  const total = taxable + taxAmount;
+
+  return {
+    subtotal,
+    discount,
+    taxable,
+    taxAmount,
+    total,
+  };
+}
+
+function displayDate(value: string) {
+  if (!value) return "-";
+  const parts = value.split("-");
+  if (parts.length !== 3) return value;
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+}
+
+function createQuotationPdf(JsPDFCtor: any, quotation: Quotation, theme: QuotationTheme) {
+  const doc = new JsPDFCtor({
+    orientation: "portrait",
+    unit: "mm",
+    format: "a4",
+    compress: true,
+  });
+
+  const config = quotationThemes[theme];
+  const isDark = theme === "premium";
+  const pageW = 210;
+  const pageH = 297;
+  const margin = 10;
+  const contentW = pageW - margin * 2;
+  const paper = isDark ? "#111827" : "#ffffff";
+  const panel = isDark ? "#182033" : config.soft;
+  const ink = isDark ? "#f9fafb" : config.text;
+  const muted = isDark ? "#9ca3af" : config.muted;
+  const border = isDark ? "#374151" : config.border;
+  const primary = config.primary;
+  const totals = calculateQuotationTotals(quotation);
+
+  const rgb = (hex: string) => {
+    const value = hex.replace("#", "");
+    return {
+      r: parseInt(value.slice(0, 2), 16),
+      g: parseInt(value.slice(2, 4), 16),
+      b: parseInt(value.slice(4, 6), 16),
+    };
+  };
+
+  const fill = (hex: string) => {
+    const c = rgb(hex);
+    doc.setFillColor(c.r, c.g, c.b);
+  };
+  const stroke = (hex: string) => {
+    const c = rgb(hex);
+    doc.setDrawColor(c.r, c.g, c.b);
+  };
+  const inkColor = (hex: string) => {
+    const c = rgb(hex);
+    doc.setTextColor(c.r, c.g, c.b);
+  };
+  const line = (x1: number, y1: number, x2: number, y2: number) => {
+    doc.line(x1, y1, x2, y2);
+  };
+
+  fill(paper);
+  doc.rect(0, 0, pageW, pageH, "F");
+
+  // Header
+  fill(panel);
+  doc.roundedRect(margin, margin, contentW, 31, 3, 3, "F");
+  fill(primary);
+  doc.roundedRect(margin, margin + 31 - 2.2, contentW, 2.2, 1, 1, "F");
+
+  fill(BRANDING.color);
+  doc.roundedRect(margin + 5, margin + 5, 14, 14, 3, 3, "F");
+  inkColor("#ffffff");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text(BRANDING.logoMark, margin + 12, margin + 14.5, { align: "center" });
+
+  inkColor(ink);
+  doc.setFontSize(16);
+  doc.text(BRANDING.logoText, margin + 23, margin + 11);
+  inkColor(BRANDING.mutedText);
+  doc.setFontSize(7);
+  doc.text(BRANDING.headline, margin + 23, margin + 15);
+
+  inkColor(BRANDING.color);
+  doc.setFontSize(7);
+  doc.text("QUOTATION", pageW - margin, margin + 7, { align: "right" });
+  inkColor(ink);
+  doc.setFontSize(15);
+  doc.text(quotation.quotationNo || "QT-XXXX-XXX", pageW - margin, margin + 14);
+  inkColor(muted);
+  doc.setFontSize(6.8);
+  doc.text(`Created: ${displayDate(quotation.createdAt)}`, pageW - margin, margin + 20, { align: "right" });
+  doc.text(`Valid Until: ${displayDate(quotation.validUntil)}`, pageW - margin, margin + 25.5, { align: "right" });
+
+  // Customer + reference boxes
+  const boxY = margin + 36;
+  const boxH = 34;
+  const gap = 4;
+  const boxW = (contentW - gap) / 2;
+
+  fill(isDark ? "#182033" : "#ffffff");
+  stroke(border);
+  doc.roundedRect(margin, boxY, boxW, boxH, 3, 3, "FD");
+  doc.roundedRect(margin + boxW + gap, boxY, boxW, boxH, 3, 3, "FD");
+
+  inkColor(muted);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(6.5);
+  doc.text("BILL TO", margin + 4, boxY + 7);
+  inkColor(ink);
+  doc.setFontSize(8.5);
+  doc.text(quotation.customerName || "Customer", margin + 4, boxY + 13);
+  inkColor(muted);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6.8);
+  doc.text(quotation.company || "-", margin + 4, boxY + 18);
+  doc.text(quotation.email || "-", margin + 4, boxY + 23);
+  doc.text(quotation.phone || "-", margin + 4, boxY + 28);
+
+  const refX = margin + boxW + gap;
+  inkColor(muted);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(6.5);
+  doc.text("REFERENCE", refX + 4, boxY + 7);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6.8);
+  const refRows = [
+    ["Product / Service", quotation.product || "-"],
+    ["Lead ID", String(quotation.leadId || "-")],
+    ["Assigned To", employeeName(quotation.assignedEmployeeId)],
+    ["Payment Terms", quotation.paymentTerms || "-"],
+  ];
+  refRows.forEach((row, index) => {
+    const yy = boxY + 13 + index * 5.2;
+    inkColor(muted);
+    doc.text(row[0], refX + 4, yy);
+    inkColor(ink);
+    const maxWidth = boxW - 34;
+    const wrapped = doc.splitTextToSize(String(row[1]), maxWidth);
+    doc.text(wrapped.slice(0, 1), refX + 36, yy);
+  });
+
+  // Status bar
+  const statusY = boxY + boxH + 4;
+  fill(primary);
+  doc.roundedRect(margin, statusY, contentW, 7, 2, 2, "F");
+  inkColor("#ffffff");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(6.8);
+  doc.text(statusConfig[quotation.status].label.toUpperCase(), margin + 4, statusY + 4.6);
+  doc.text(
+    quotation.assignedEmployeeId
+      ? `Assigned to ${employeeName(quotation.assignedEmployeeId)}`
+      : "Assignment pending",
+    pageW - margin - 4,
+    statusY + 4.6,
+    { align: "right" }
+  );
+
+  // Items section
+  let y = statusY + 12;
+  inkColor(ink);
+  doc.setFontSize(7);
+  doc.text("ITEMS / SERVICES", margin, y);
+  y += 3;
+
+  const tableX = margin;
+  const tableW = contentW;
+  const headerH = 8;
+  const rowH = quotation.items.length > 7 ? 7 : 8;
+  const col1 = tableW * 0.50;
+  const col2 = tableW * 0.12;
+  const col3 = tableW * 0.18;
+  const col4 = tableW * 0.20;
+
+  fill(panel);
+  stroke(border);
+  doc.roundedRect(tableX, y, tableW, headerH, 3, 3, "FD");
+  fill(panel);
+  doc.rect(tableX, y + 3, tableW, headerH - 3, "F");
+  inkColor(muted);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(6.2);
+  doc.text("ITEM / DESCRIPTION", tableX + 3, y + 5.3);
+  doc.text("QTY", tableX + col1 + 2, y + 5.3);
+  doc.text("RATE", tableX + col1 + col2 + col3 - 2, y + 5.3, { align: "right" });
+  doc.text("AMOUNT", tableX + tableW - 3, y + 5.3, { align: "right" });
+
+  y += headerH;
+  stroke(border);
+  doc.setFont("helvetica", "normal");
+  quotation.items.forEach((item, index) => {
+    const rowY = y + index * rowH;
+    fill(isDark ? "#111827" : "#ffffff");
+    doc.rect(tableX, rowY, tableW, rowH, "F");
+    stroke(border);
+    line(tableX, rowY, tableX + tableW, rowY);
+
+    inkColor(ink);
+    doc.setFontSize(6.6);
+    doc.setFont("helvetica", "bold");
+    doc.text(item.name || "Item", tableX + 3, rowY + 3.2);
+    inkColor(muted);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(5.7);
+    const desc = item.description || "-";
+    const shortDesc = desc.length > 58 ? `${desc.slice(0, 55)}...` : desc;
+    doc.text(shortDesc, tableX + 3, rowY + 6);
+
+    inkColor(ink);
+    doc.setFontSize(6.6);
+    doc.text(String(item.quantity), tableX + col1 + col2 / 2, rowY + 4.8, { align: "center" });
+    doc.text(formatCurrency(item.rate), tableX + col1 + col2 + col3 - 2, rowY + 4.8, { align: "right" });
+    doc.setFont("helvetica", "bold");
+    doc.text(formatCurrency(item.quantity * item.rate), tableX + tableW - 3, rowY + 4.8, { align: "right" });
+  });
+  y += quotation.items.length * rowH;
+  stroke(border);
+  line(tableX, y, tableX + tableW, y);
+  doc.roundedRect(tableX, y - quotation.items.length * rowH - headerH, tableW, quotation.items.length * rowH + headerH, 3, 3);
+
+  // Bottom section
+  y += 5;
+  const bottomW = 71;
+  const leftW = contentW - bottomW - gap;
+  const bottomY = y;
+  const bottomH = 41;
+
+  fill(isDark ? "#182033" : "#ffffff");
+  stroke(border);
+  doc.roundedRect(margin, bottomY, leftW, bottomH, 3, 3, "FD");
+  fill(panel);
+  doc.roundedRect(margin + leftW + gap, bottomY, bottomW, bottomH, 3, 3, "F");
+
+  inkColor(muted);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(6.5);
+  doc.text("NOTES / TERMS", margin + 4, bottomY + 7);
+  inkColor(ink);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6.4);
+  const noteLines = doc.splitTextToSize(
+    quotation.notes || "Thank you for your business.",
+    leftW - 8
+  );
+  doc.text(noteLines.slice(0, 5), margin + 4, bottomY + 13);
+  inkColor(muted);
+  doc.setFontSize(6.1);
+  doc.text(`Payment Terms: ${quotation.paymentTerms || "-"}`, margin + 4, bottomY + 35);
+
+  const sumX = margin + leftW + gap;
+  const rowStart = bottomY + 7;
+  const summaryRows: Array<[string, number]> = [
+    ["Subtotal", totals.subtotal],
+    ["Discount", -totals.discount],
+    [`GST (${quotation.tax || 0}%)`, totals.taxAmount],
+  ];
+  summaryRows.forEach((row, index) => {
+    const yy = rowStart + index * 7;
+    inkColor(muted);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.6);
+    doc.text(row[0], sumX + 4, yy);
+    inkColor(ink);
+    doc.text(formatCurrency(row[1]), sumX + bottomW - 4, yy, { align: "right" });
+  });
+
+  fill(primary);
+  doc.roundedRect(sumX + 3, bottomY + 27, bottomW - 6, 8, 2, 2, "F");
+  inkColor("#ffffff");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(7.6);
+  doc.text("GRAND TOTAL", sumX + 6, bottomY + 32.3);
+  doc.text(formatCurrency(totals.total), sumX + bottomW - 6, bottomY + 32.3, { align: "right" });
+
+  // Footer + single signature line (no full-width extra line)
+  const footerY = bottomY + bottomH + 6;
+  inkColor(muted);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6.2);
+  doc.text(BRANDING.logoText, margin, footerY + 3.5);
+  doc.text(BRANDING.headline, margin, footerY + 7.5);
+  doc.text("This is a system-generated quotation document.", margin, footerY + 11.5);
+
+  const sigCenterX = pageW - margin - 24;
+  const sigLeft = sigCenterX - 24;
+  const sigRight = sigCenterX + 24;
+  stroke(border);
+
+  if (quotation.signatureDataUrl) {
+    try {
+      const props = doc.getImageProperties(quotation.signatureDataUrl);
+      const maxW = 38;
+      const maxH = 15;
+      let imgW = maxW;
+      let imgH = (props.height / props.width) * imgW;
+      if (imgH > maxH) {
+        imgH = maxH;
+        imgW = (props.width / props.height) * imgH;
+      }
+      const imgX = sigCenterX - imgW / 2;
+      const imgY = footerY - 2 - imgH;
+      doc.addImage(
+        quotation.signatureDataUrl,
+        quotation.signatureDataUrl.toLowerCase().startsWith("data:image/png") ? "PNG" : "JPEG",
+        imgX,
+        imgY,
+        imgW,
+        imgH,
+      );
+    } catch {
+      // Keep the signature line even if the image cannot be embedded.
+    }
+  }
+
+  line(sigLeft, footerY + 7, sigRight, footerY + 7);
+  inkColor(muted);
+  doc.setFontSize(6.3);
+  doc.text("Authorized Signature", sigCenterX, footerY + 11.5, { align: "center" });
+
+  return doc;
+}
+
+function buildQuotationPrintHtml(quotation: Quotation, theme: QuotationTheme) {
+  const config = quotationThemes[theme];
+  const isDark = theme === "premium";
+  const paper = isDark ? "#111827" : "#ffffff";
+  const panel = isDark ? "#182033" : config.soft;
+  const ink = isDark ? "#f9fafb" : config.text;
+  const muted = isDark ? "#9ca3af" : config.muted;
+  const border = isDark ? "#374151" : config.border;
+  const primary = config.primary;
+  const totals = calculateQuotationTotals(quotation);
+
+  const escapeHtml = (value: unknown) =>
+    String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+
+  const itemsHtml = quotation.items
+    .map(
+      (item) => `
+        <tr>
+          <td>
+            <div class="item-name">${escapeHtml(item.name || "Item")}</div>
+            <div class="item-desc">${escapeHtml(item.description || "-")}</div>
+          </td>
+          <td class="center">${escapeHtml(item.quantity)}</td>
+          <td class="right">${formatCurrency(item.rate)}</td>
+          <td class="right strong">${formatCurrency(item.quantity * item.rate)}</td>
+        </tr>
+      `,
+    )
+    .join("");
+
+  const signatureHtml = quotation.signatureDataUrl
+    ? `<img class="signature-image" src="${quotation.signatureDataUrl}" alt="Authorized signature" />`
+    : `<div class="signature-placeholder"></div>`;
+
+  return `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>${escapeHtml(quotation.quotationNo)} - TIVRA Quotation</title>
+        <style>
+          * { box-sizing: border-box; }
+          @page { size: A4 portrait; margin: 0; }
+          html, body {
+            width: 210mm;
+            height: 297mm;
+            margin: 0;
+            padding: 0;
+            background: #e5e7eb;
+            overflow: hidden;
+          }
+          body {
+            font-family: Arial, Helvetica, sans-serif;
+            color: ${ink};
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .page {
+            width: 190mm;
+            height: 277mm;
+            margin: 10mm auto;
+            padding: 8mm;
+            overflow: hidden;
+            background: ${paper};
+            color: ${ink};
+          }
+          .header {
+            height: 31mm;
+            border-radius: 4mm;
+            background: ${panel};
+            border-bottom: 1.1mm solid ${primary};
+            padding: 5mm;
+            display: flex;
+            justify-content: space-between;
+            gap: 6mm;
+          }
+          .brand { min-width: 0; }
+          .brand-row { display:flex; align-items:center; gap:3mm; }
+          .mark {
+            width:14mm; height:14mm; border-radius:3mm;
+            background:${BRANDING.color}; color:#fff;
+            display:flex; align-items:center; justify-content:center;
+            font-size:11pt; font-weight:800;
+          }
+          .brand-name { font-size:16pt; line-height:1; font-weight:800; letter-spacing:-.3pt; }
+          .headline { margin-top:1.5mm; color:${BRANDING.mutedText}; font-size:7pt; line-height:1.25; }
+          .quotation-meta { min-width:63mm; text-align:right; }
+          .quotation-label { color:${BRANDING.color}; font-size:7pt; font-weight:800; letter-spacing:1.5pt; }
+          .quotation-number { margin-top:1.5mm; font-size:15pt; font-weight:800; white-space:nowrap; }
+          .meta-line { margin-top:1mm; color:${muted}; font-size:6.8pt; }
+          .grid2 { margin-top:5mm; display:grid; grid-template-columns:1fr 1fr; gap:4mm; }
+          .box {
+            border:.35mm solid ${border}; border-radius:3mm; padding:4mm;
+            min-width:0; background:${isDark ? "#182033" : "#fff"};
+          }
+          .box-title { color:${muted}; font-size:6.5pt; font-weight:800; letter-spacing:1pt; text-transform:uppercase; margin-bottom:2mm; }
+          .customer { font-size:8.5pt; font-weight:800; }
+          .small { margin-top:.9mm; color:${muted}; font-size:6.8pt; line-height:1.25; }
+          .ref-row { display:flex; justify-content:space-between; gap:4mm; font-size:6.8pt; line-height:1.25; margin-top:1.2mm; }
+          .ref-row span:first-child { color:${muted}; }
+          .strong { font-weight:800; }
+          .status {
+            margin-top:4mm; height:7mm; border-radius:2mm; background:${primary}; color:#fff;
+            padding:0 4mm; display:flex; align-items:center; justify-content:space-between;
+            font-size:6.8pt; font-weight:800;
+          }
+          .section-title { margin:4mm 0 2mm; font-size:7pt; font-weight:800; color:${ink}; letter-spacing:.7pt; text-transform:uppercase; }
+          table {
+            width:100%; border-collapse:collapse; table-layout:fixed;
+            border:.35mm solid ${border}; border-radius:3mm; overflow:hidden; font-size:6.6pt;
+          }
+          th { background:${panel}; color:${muted}; text-align:left; padding:2.4mm 3mm; font-size:6.2pt; text-transform:uppercase; letter-spacing:.6pt; }
+          td { padding:2.2mm 3mm; border-top:.25mm solid ${border}; line-height:1.15; height:9mm; overflow:hidden; }
+          th:nth-child(1), td:nth-child(1) { width:50%; }
+          th:nth-child(2), td:nth-child(2) { width:12%; }
+          th:nth-child(3), td:nth-child(3) { width:18%; }
+          th:nth-child(4), td:nth-child(4) { width:20%; }
+          .item-name { font-size:6.8pt; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+          .item-desc { margin-top:0.7mm; color:${muted}; font-size:5.8pt; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+          .center { text-align:center; }
+          .right { text-align:right; }
+          .bottom-grid { margin-top:4mm; display:grid; grid-template-columns:1fr 71mm; gap:4mm; align-items:start; }
+          .notes-box { min-height:41mm; }
+          .summary { border:.35mm solid ${border}; border-radius:3mm; background:${panel}; padding:3.5mm; min-height:41mm; }
+          .summary-row { display:flex; justify-content:space-between; gap:4mm; font-size:6.8pt; margin-top:1.6mm; }
+          .summary-row:first-child { margin-top:0; }
+          .summary-row .label { color:${muted}; }
+          .total { margin-top:2mm; padding:2.7mm 3mm; border-radius:2mm; background:${primary}; color:#fff; display:flex; justify-content:space-between; gap:3mm; font-size:8pt; font-weight:800; }
+          .terms { margin-top:2.5mm; color:${muted}; font-size:6.1pt; line-height:1.25; }
+          .footer { margin-top:4mm; display:flex; justify-content:space-between; align-items:flex-end; gap:8mm; }
+          .footer-copy { color:${muted}; font-size:6.5pt; line-height:1.35; }
+          .footer-brand { color:${isDark ? "#f9fafb" : BRANDING.neutralText}; font-weight:800; }
+          .signature { width:48mm; text-align:center; color:${muted}; font-size:6.5pt; }
+          .signature-image-wrap { height:16mm; display:flex; align-items:flex-end; justify-content:center; margin-bottom:1.5mm; }
+          .signature-image { max-width:38mm; max-height:14mm; object-fit:contain; display:block; }
+          .signature-placeholder { height:16mm; }
+          .signature-line { width:48mm; margin:0 auto 2mm; border-bottom:.35mm solid ${border}; }
+          .no-break { page-break-inside:avoid; break-inside:avoid-page; }
+          @media print {
+            html, body { width:210mm !important; height:297mm !important; overflow:hidden !important; background:${paper} !important; }
+            .page { margin:10mm auto !important; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="page">
+          <div class="header no-break">
+            <div class="brand">
+              <div class="brand-row">
+                <div class="mark">${escapeHtml(BRANDING.logoMark)}</div>
+                <div>
+                  <div class="brand-name">${escapeHtml(BRANDING.logoText)}</div>
+                  <div class="headline">${escapeHtml(BRANDING.headline)}</div>
+                </div>
+              </div>
+            </div>
+            <div class="quotation-meta">
+              <div class="quotation-label">QUOTATION</div>
+              <div class="quotation-number">${escapeHtml(quotation.quotationNo || "QT-XXXX-XXX")}</div>
+              <div class="meta-line">Created: ${escapeHtml(displayDate(quotation.createdAt))}</div>
+              <div class="meta-line">Valid Until: ${escapeHtml(displayDate(quotation.validUntil))}</div>
+            </div>
+          </div>
+
+          <div class="grid2 no-break">
+            <div class="box">
+              <div class="box-title">Bill To</div>
+              <div class="customer">${escapeHtml(quotation.customerName || "Customer")}</div>
+              <div class="small">${escapeHtml(quotation.company || "-")}</div>
+              <div class="small">${escapeHtml(quotation.email || "-")}</div>
+              <div class="small">${escapeHtml(quotation.phone || "-")}</div>
+            </div>
+
+            <div class="box">
+              <div class="box-title">Reference</div>
+              <div class="ref-row"><span>Product / Service</span><strong>${escapeHtml(quotation.product || "-")}</strong></div>
+              <div class="ref-row"><span>Lead ID</span><strong>${escapeHtml(String(quotation.leadId || "-"))}</strong></div>
+              <div class="ref-row"><span>Assigned To</span><strong>${escapeHtml(employeeName(quotation.assignedEmployeeId))}</strong></div>
+              <div class="ref-row"><span>Payment Terms</span><strong>${escapeHtml(quotation.paymentTerms || "-")}</strong></div>
+            </div>
+          </div>
+
+          <div class="status no-break">
+            <span>${escapeHtml(statusConfig[quotation.status].label.toUpperCase())}</span>
+            <span>${quotation.assignedEmployeeId ? `Assigned to ${escapeHtml(employeeName(quotation.assignedEmployeeId))}` : "Assignment pending"}</span>
+          </div>
+
+          <div class="section-title">Items / Services</div>
+          <table class="no-break">
+            <thead>
+              <tr>
+                <th>Item / Description</th>
+                <th>Qty</th>
+                <th class="right">Rate</th>
+                <th class="right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>${itemsHtml}</tbody>
+          </table>
+
+          <div class="bottom-grid no-break">
+            <div class="box notes-box">
+              <div class="box-title">Notes / Terms</div>
+              <div class="small">${escapeHtml(quotation.notes || "Thank you for your business.")}</div>
+              <div class="terms">Payment Terms: ${escapeHtml(quotation.paymentTerms || "-")}</div>
+            </div>
+
+            <div class="summary">
+              <div class="summary-row"><span class="label">Subtotal</span><span>${formatCurrency(totals.subtotal)}</span></div>
+              <div class="summary-row"><span class="label">Discount</span><span>${formatCurrency(totals.discount)}</span></div>
+              <div class="summary-row"><span class="label">GST (${escapeHtml(quotation.tax)}%)</span><span>${formatCurrency(totals.taxAmount)}</span></div>
+              <div class="total"><span>Grand Total</span><span>${formatCurrency(totals.total)}</span></div>
+            </div>
+          </div>
+
+          <div class="footer no-break">
+            <div class="footer-copy">
+              <div class="footer-brand">${escapeHtml(BRANDING.logoText)}</div>
+              ${escapeHtml(BRANDING.headline)}<br />
+              This is a system-generated quotation document.
+            </div>
+            <div class="signature">
+              <div class="signature-image-wrap">${signatureHtml}</div>
+              <div class="signature-line"></div>
+              Authorized Signature
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
 }
 
 export default function QuotationsPage() {
@@ -469,7 +1146,13 @@ export default function QuotationsPage() {
   const [employeeSearch, setEmployeeSearch] =
     useState("");
 
-  const [form, setForm] = useState<Quotation>({
+  const [quotationTheme, setQuotationTheme] =
+    useState<QuotationTheme>("professional");
+
+  const [showQuotationPreview, setShowQuotationPreview] =
+    useState(false);
+
+  const createEmptyQuotation = (): Quotation => ({
     id: 0,
     quotationNo: "",
     version: 1,
@@ -487,6 +1170,7 @@ export default function QuotationsPage() {
     discount: 0,
     tax: 18,
     notes: "",
+    signatureDataUrl: "",
     items: [emptyItem()],
     createdAt: new Date()
       .toISOString()
@@ -494,11 +1178,18 @@ export default function QuotationsPage() {
     versions: [],
   });
 
-  const filteredQuotations = useMemo(() => {
-    return quotations.filter((quotation) => {
-      const query = search.toLowerCase();
+  const [form, setForm] = useState<Quotation>(
+    createEmptyQuotation()
+  );
 
+  const filteredQuotations = useMemo(() => {
+    const query = search
+      .trim()
+      .toLowerCase();
+
+    return quotations.filter((quotation) => {
       const matchesSearch =
+        !query ||
         quotation.quotationNo
           .toLowerCase()
           .includes(query) ||
@@ -521,9 +1212,7 @@ export default function QuotationsPage() {
         statusFilter === "ALL" ||
         quotation.status === statusFilter;
 
-      return (
-        matchesSearch && matchesStatus
-      );
+      return matchesSearch && matchesStatus;
     });
   }, [
     quotations,
@@ -534,34 +1223,31 @@ export default function QuotationsPage() {
   const stats = useMemo(() => {
     const total = quotations.length;
 
-    const totalValue =
-      quotations.reduce(
-        (sum, quotation) =>
-          sum + calculateTotal(quotation),
-        0
-      );
+    const totalValue = quotations.reduce(
+      (sum, quotation) =>
+        sum + calculateTotal(quotation),
+      0
+    );
 
-    const accepted =
-      quotations.filter(
-        (quotation) =>
-          quotation.status === "ACCEPTED"
-      ).length;
+    const accepted = quotations.filter(
+      (quotation) =>
+        quotation.status === "ACCEPTED"
+    ).length;
 
-    const pending =
-      quotations.filter((quotation) =>
+    const pending = quotations.filter(
+      (quotation) =>
         [
           "DRAFT",
           "SENT",
           "UNDER_REVIEW",
           "APPROVED",
         ].includes(quotation.status)
-      ).length;
+    ).length;
 
-    const rejected =
-      quotations.filter(
-        (quotation) =>
-          quotation.status === "REJECTED"
-      ).length;
+    const rejected = quotations.filter(
+      (quotation) =>
+        quotation.status === "REJECTED"
+    ).length;
 
     return {
       total,
@@ -574,29 +1260,9 @@ export default function QuotationsPage() {
 
   function openAddModal() {
     setForm({
-      id: 0,
+      ...createEmptyQuotation(),
       quotationNo:
         getNextQuotationNumber(quotations),
-      version: 1,
-      leadId: 0,
-      customerName: "",
-      company: "",
-      email: "",
-      phone: "",
-      product: "",
-      assignedEmployeeId: null,
-      status: "DRAFT",
-      validUntil: "",
-      paymentTerms:
-        "50% advance, 50% after completion",
-      discount: 0,
-      tax: 18,
-      notes: "",
-      items: [emptyItem()],
-      createdAt: new Date()
-        .toISOString()
-        .slice(0, 10),
-      versions: [],
     });
 
     setEditingQuotation(null);
@@ -610,21 +1276,21 @@ export default function QuotationsPage() {
     setForm({
       ...quotation,
       items: quotation.items.map(
-        (item) => ({
-          ...item,
-        })
+        (item) => ({ ...item })
       ),
-      versions:
-        quotation.versions.map(
-          (version) => ({
-            ...version,
-          })
-        ),
+      versions: quotation.versions.map(
+        (version) => ({ ...version })
+      ),
     });
 
     setSelectedQuotation(null);
-    setEditingQuotation(quotation);
     setShowAddModal(false);
+    setEditingQuotation(quotation);
+  }
+
+  function closeForm() {
+    setShowAddModal(false);
+    setEditingQuotation(null);
   }
 
   function saveQuotation() {
@@ -645,123 +1311,126 @@ export default function QuotationsPage() {
       return;
     }
 
-    if (form.items.length === 0) {
-      alert(
-        "Please add at least one quotation item."
-      );
-      return;
-    }
-
-    const cleanedItems =
-      form.items.filter(
+    const cleanedItems = form.items
+      .filter(
         (item) =>
           item.name.trim() !== ""
-      );
+      )
+      .map((item) => ({
+        ...item,
+        quantity: Math.max(
+          Number(item.quantity) || 0,
+          0
+        ),
+        rate: Math.max(
+          Number(item.rate) || 0,
+          0
+        ),
+      }));
 
     if (cleanedItems.length === 0) {
       alert(
-        "Please enter at least one item name."
+        "Please add at least one item."
       );
       return;
     }
 
+    const today = new Date()
+      .toISOString()
+      .slice(0, 10);
+
     if (editingQuotation) {
-      const updatedQuotation: Quotation =
-        {
-          ...form,
-          items: cleanedItems,
-          versions: [
-            ...editingQuotation.versions.filter(
-              (version) =>
-                version.version !==
-                editingQuotation.version
-            ),
-            {
-              version:
-                editingQuotation.version,
-              date: new Date()
-                .toISOString()
-                .slice(0, 10),
-              createdBy: "Current User",
-              amount: calculateTotal({
-                ...form,
-                items: cleanedItems,
-              }),
-              status: form.status,
-              note: "Quotation updated",
-            },
-          ],
-        };
+      const updated: Quotation = {
+        ...form,
+        items: cleanedItems,
+        discount: Math.max(
+          Number(form.discount) || 0,
+          0
+        ),
+        tax: Math.max(
+          Number(form.tax) || 0,
+          0
+        ),
+        versions:
+          editingQuotation.versions.length
+            ? editingQuotation.versions
+            : [
+                {
+                  version:
+                    editingQuotation.version,
+                  date: today,
+                  createdBy: "Current User",
+                  amount:
+                    calculateTotal({
+                      ...form,
+                      items: cleanedItems,
+                    }),
+                  status: form.status,
+                  note: "Quotation updated",
+                },
+              ],
+      };
 
       setQuotations((current) =>
-        current.map((quotation) =>
-          quotation.id ===
+        current.map((item) =>
+          item.id ===
           editingQuotation.id
-            ? updatedQuotation
-            : quotation
+            ? updated
+            : item
         )
       );
 
-      setSelectedQuotation(
-        updatedQuotation
-      );
-      setEditingQuotation(null);
-    } else {
-      const newQuotation: Quotation = {
-        ...form,
-        id:
-          Date.now() +
-          Math.floor(
-            Math.random() * 100000
-          ),
-        items: cleanedItems,
-        versions: [
-          {
-            version: 1,
-            date: new Date()
-              .toISOString()
-              .slice(0, 10),
-            createdBy: "Current User",
-            amount: calculateTotal({
-              ...form,
-              items: cleanedItems,
-            }),
-            status: form.status,
-            note: "Quotation created",
-          },
-        ],
-      };
-
-      setQuotations((current) => [
-        newQuotation,
-        ...current,
-      ]);
-
-      setSelectedQuotation(
-        newQuotation
-      );
-      setShowAddModal(false);
+      setSelectedQuotation(updated);
+      closeForm();
+      return;
     }
+
+    const newQuotation: Quotation = {
+      ...form,
+      id:
+        Date.now() +
+        Math.floor(
+          Math.random() * 1000000
+        ),
+      items: cleanedItems,
+      discount: Math.max(
+        Number(form.discount) || 0,
+        0
+      ),
+      tax: Math.max(
+        Number(form.tax) || 0,
+        0
+      ),
+      versions: [
+        {
+          version: 1,
+          date: today,
+          createdBy: "Current User",
+          amount: calculateTotal({
+            ...form,
+            items: cleanedItems,
+          }),
+          status: form.status,
+          note: "Quotation created",
+        },
+      ],
+    };
+
+    setQuotations((current) => [
+      newQuotation,
+      ...current,
+    ]);
+
+    setSelectedQuotation(newQuotation);
+    closeForm();
   }
 
   function duplicateQuotation(
     quotation: Quotation
   ) {
-    const today =
-      new Date()
-        .toISOString()
-        .slice(0, 10);
-
-    const newQuotationNo =
-      getNextQuotationNumber(
-        quotations
-      );
-
-    const newQuotationId =
-      Date.now() +
-      Math.floor(
-        Math.random() * 1000000
-      );
+    const today = new Date()
+      .toISOString()
+      .slice(0, 10);
 
     const duplicatedItems =
       quotation.items.map(
@@ -778,8 +1447,15 @@ export default function QuotationsPage() {
 
     const duplicated: Quotation = {
       ...quotation,
-      id: newQuotationId,
-      quotationNo: newQuotationNo,
+      id:
+        Date.now() +
+        Math.floor(
+          Math.random() * 1000000
+        ),
+      quotationNo:
+        getNextQuotationNumber(
+          quotations
+        ),
       version: 1,
       status: "DRAFT",
       createdAt: today,
@@ -821,20 +1497,15 @@ export default function QuotationsPage() {
       )
     );
 
-    if (
-      selectedQuotation?.id ===
-      deletingQuotation.id
-    ) {
-      setSelectedQuotation(null);
-    }
+    setSelectedQuotation((current) =>
+      current?.id === deletingQuotation.id
+        ? null
+        : current
+    );
 
     setDeletingQuotation(null);
     setShowDeleteModal(false);
   }
-
-  /* =====================================================
-     FIXED STATUS UPDATE
-  ===================================================== */
 
   function updateStatus(
     quotationId: number,
@@ -893,28 +1564,20 @@ export default function QuotationsPage() {
     );
 
     setSelectedQuotation((current) =>
-      current &&
-      current.id === quotationId
+      current?.id === quotationId
         ? updatedQuotation
         : current
     );
   }
 
-  /* =====================================================
-     FIXED MOVE BUTTON
-  ===================================================== */
-
   function moveToNextStatus(
     quotation: Quotation
   ) {
-    const next =
-      nextStatus(
-        quotation.status
-      );
+    const next = nextStatus(
+      quotation.status
+    );
 
-    if (!next) {
-      return;
-    }
+    if (!next) return;
 
     updateStatus(
       quotation.id,
@@ -925,9 +1588,7 @@ export default function QuotationsPage() {
   function openAssignModal(
     quotation: Quotation
   ) {
-    setAssigningQuotation(
-      quotation
-    );
+    setAssigningQuotation(quotation);
     setEmployeeSearch("");
     setShowAssignModal(true);
   }
@@ -937,7 +1598,7 @@ export default function QuotationsPage() {
   ) {
     if (!assigningQuotation) return;
 
-    const updatedQuotation = {
+    const updatedQuotation: Quotation = {
       ...assigningQuotation,
       assignedEmployeeId:
         employeeId,
@@ -952,13 +1613,11 @@ export default function QuotationsPage() {
       )
     );
 
-    setSelectedQuotation(
-      (current) =>
-        current &&
-        current.id ===
-          assigningQuotation.id
-          ? updatedQuotation
-          : current
+    setSelectedQuotation((current) =>
+      current?.id ===
+      assigningQuotation.id
+        ? updatedQuotation
+        : current
     );
 
     setShowAssignModal(false);
@@ -983,18 +1642,29 @@ export default function QuotationsPage() {
     setForm((current) => ({
       ...current,
       items: current.items.map(
-        (item) =>
-          item.id === itemId
-            ? {
-                ...item,
-                [field]:
-                  field ===
-                    "quantity" ||
-                  field === "rate"
-                    ? Number(value)
-                    : value,
-              }
-            : item
+        (item) => {
+          if (item.id !== itemId) {
+            return item;
+          }
+
+          if (
+            field === "quantity" ||
+            field === "rate"
+          ) {
+            return {
+              ...item,
+              [field]: Math.max(
+                Number(value) || 0,
+                0
+              ),
+            };
+          }
+
+          return {
+            ...item,
+            [field]: value,
+          };
+        }
       ),
     }));
   }
@@ -1015,7 +1685,11 @@ export default function QuotationsPage() {
     employees.filter(
       (employee) => {
         const query =
-          employeeSearch.toLowerCase();
+          employeeSearch
+            .trim()
+            .toLowerCase();
+
+        if (!query) return true;
 
         return (
           employee.name
@@ -1030,6 +1704,70 @@ export default function QuotationsPage() {
         );
       }
     );
+
+
+  function openQuotationPreview(quotation: Quotation) {
+    setSelectedQuotation(quotation);
+    setShowHistoryModal(false);
+    setShowPaymentModal(false);
+    setShowQuotationPreview(true);
+  }
+
+  function printQuotation(quotation: Quotation) {
+    // Use a dedicated fixed-size A4 print document, matching the Billing flow.
+    // This avoids printing the dashboard/page URL and prevents responsive layout clipping.
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute("aria-hidden", "true");
+    iframe.title = `${quotation.quotationNo} - TIVRA Quotation`;
+    iframe.style.position = "fixed";
+    iframe.style.left = "-10000px";
+    iframe.style.top = "0";
+    iframe.style.width = "210mm";
+    iframe.style.height = "297mm";
+    iframe.style.border = "0";
+    iframe.style.opacity = "0.01";
+    iframe.style.pointerEvents = "none";
+    iframe.style.zIndex = "-1";
+    document.body.appendChild(iframe);
+
+    const printDocument = iframe.contentDocument;
+    const printWindow = iframe.contentWindow;
+
+    if (!printDocument || !printWindow) {
+      iframe.remove();
+      window.alert("Unable to prepare the quotation for printing. Please try again.");
+      return;
+    }
+
+    printDocument.open();
+    printDocument.write(buildQuotationPrintHtml(quotation, quotationTheme));
+    printDocument.close();
+
+    const cleanup = () => {
+      window.setTimeout(() => iframe.remove(), 800);
+    };
+
+    printWindow.onafterprint = cleanup;
+    window.setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+      cleanup();
+    }, 350);
+  }
+
+  async function downloadQuotationPdf(quotation: Quotation) {
+    try {
+      const { jsPDF } = await import("jspdf");
+      const doc = createQuotationPdf(jsPDF, quotation, quotationTheme);
+      const safeName = quotation.quotationNo.replace(/[^a-zA-Z0-9-_]/g, "_");
+      doc.save(`${safeName}.pdf`);
+    } catch (error) {
+      console.error("Unable to generate quotation PDF:", error);
+      window.alert(
+        "PDF generation needs the jspdf package. Run: npm install jspdf"
+      );
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[#080b12] text-white p-4 md:p-6">
@@ -1092,8 +1830,7 @@ export default function QuotationsPage() {
                 </div>
 
                 {index <
-                  array.length -
-                    1 && (
+                  array.length - 1 && (
                   <div className="h-px bg-white/10 flex-1 mx-2" />
                 )}
               </div>
@@ -1162,10 +1899,11 @@ export default function QuotationsPage() {
         })}
       </div>
 
-      {/* FILTERS */}
+      {/* FILTER */}
 
       <div className="bg-[#0d111a] border border-white/10 rounded-2xl p-4 mb-4">
         <div className="flex flex-col lg:flex-row gap-3">
+
           <div className="relative flex-1">
             <Search
               size={18}
@@ -1175,9 +1913,7 @@ export default function QuotationsPage() {
             <input
               value={search}
               onChange={(e) =>
-                setSearch(
-                  e.target.value
-                )
+                setSearch(e.target.value)
               }
               placeholder="Search quotation, customer, company, product..."
               className="w-full bg-[#080b12] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm outline-none focus:border-blue-500/50"
@@ -1202,10 +1938,7 @@ export default function QuotationsPage() {
             {Object.entries(
               statusConfig
             ).map(
-              ([
-                value,
-                config,
-              ]) => (
+              ([value, config]) => (
                 <option
                   key={value}
                   value={value}
@@ -1222,9 +1955,12 @@ export default function QuotationsPage() {
 
       <div className="bg-[#0d111a] border border-white/10 rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
+
           <table className="w-full min-w-[1100px]">
+
             <thead>
               <tr className="border-b border-white/10 text-left text-xs text-gray-500">
+
                 <th className="px-5 py-4">
                   Quotation
                 </th>
@@ -1256,6 +1992,7 @@ export default function QuotationsPage() {
                 <th className="px-5 py-4 text-right">
                   Action
                 </th>
+
               </tr>
             </thead>
 
@@ -1266,6 +2003,7 @@ export default function QuotationsPage() {
                     key={quotation.id}
                     className="border-b border-white/5 hover:bg-white/[0.02]"
                   >
+
                     <td className="px-5 py-4">
                       <div className="font-medium">
                         {
@@ -1343,6 +2081,7 @@ export default function QuotationsPage() {
                     </td>
 
                     <td className="px-5 py-4">
+
                       <div className="flex items-center justify-end gap-1">
 
                         <button
@@ -1398,9 +2137,15 @@ export default function QuotationsPage() {
                           }
                           className="p-2 rounded-lg hover:bg-green-500/10 text-green-400 transition"
                         >
-                          <UserPlus
-                            size={16}
-                          />
+                          <UserPlus size={16} />
+                        </button>
+
+                        <button
+                          title="Print / Save PDF"
+                          onClick={() => openQuotationPreview(quotation)}
+                          className="p-2 rounded-lg hover:bg-orange-500/10 text-orange-400 transition"
+                        >
+                          <Printer size={16} />
                         </button>
 
                         <button
@@ -1409,22 +2154,25 @@ export default function QuotationsPage() {
                             setDeletingQuotation(
                               quotation
                             );
+
                             setShowDeleteModal(
                               true
                             );
                           }}
                           className="p-2 rounded-lg hover:bg-red-500/10 text-red-400 transition"
                         >
-                          <Trash2
-                            size={16}
-                          />
+                          <Trash2 size={16} />
                         </button>
+
                       </div>
+
                     </td>
+
                   </tr>
                 )
               )}
             </tbody>
+
           </table>
 
           {filteredQuotations.length ===
@@ -1433,18 +2181,23 @@ export default function QuotationsPage() {
               No quotations found.
             </div>
           )}
+
         </div>
       </div>
 
-      {/* VIEW DETAILS MODAL */}
+      {/* VIEW DETAILS */}
 
       {selectedQuotation && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+
           <div className="bg-[#0d111a] border border-white/10 rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto shadow-2xl">
 
             <div className="sticky top-0 z-10 bg-[#0d111a] p-5 border-b border-white/10 flex items-center justify-between">
+
               <div>
+
                 <div className="flex items-center gap-3">
+
                   <h2 className="text-xl font-bold">
                     {
                       selectedQuotation.quotationNo
@@ -1464,6 +2217,7 @@ export default function QuotationsPage() {
                       ].label
                     }
                   </span>
+
                 </div>
 
                 <p className="text-sm text-gray-500 mt-1">
@@ -1476,30 +2230,32 @@ export default function QuotationsPage() {
                     selectedQuotation.createdAt
                   }
                 </p>
+
               </div>
 
               <button
                 onClick={() =>
-                  setSelectedQuotation(
-                    null
-                  )
+                  setSelectedQuotation(null)
                 }
                 className="p-2 rounded-lg hover:bg-white/10"
               >
                 <X size={20} />
               </button>
+
             </div>
 
             <div className="p-5 space-y-5">
 
-              {/* CUSTOMER DETAILS */}
+              {/* CUSTOMER */}
 
               <div>
+
                 <h3 className="font-semibold mb-3">
                   Customer Information
                 </h3>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
                   <InfoBox
                     label="Customer"
                     value={
@@ -1554,7 +2310,7 @@ export default function QuotationsPage() {
                     label="Valid Until"
                     value={
                       selectedQuotation.validUntil ||
-                      "-"
+                        "-"
                     }
                   />
 
@@ -1564,13 +2320,17 @@ export default function QuotationsPage() {
                       selectedQuotation.paymentTerms
                     }
                   />
+
                 </div>
+
               </div>
 
               {/* STATUS */}
 
               <div className="bg-[#080b12] border border-white/10 rounded-xl p-4">
+
                 <div className="flex items-center justify-between mb-3">
+
                   <h3 className="font-semibold">
                     Quotation Status
                   </h3>
@@ -1588,9 +2348,11 @@ export default function QuotationsPage() {
                       ].label
                     }
                   </span>
+
                 </div>
 
                 <div className="flex flex-wrap gap-2">
+
                   {(
                     Object.keys(
                       statusConfig
@@ -1620,6 +2382,7 @@ export default function QuotationsPage() {
                       </button>
                     )
                   )}
+
                 </div>
 
                 {nextStatus(
@@ -1632,7 +2395,7 @@ export default function QuotationsPage() {
                         selectedQuotation
                       )
                     }
-                    className="mt-4 flex items-center gap-2 bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg text-sm transition cursor-pointer"
+                    className="mt-4 flex items-center gap-2 bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg text-sm"
                   >
                     Move to{" "}
                     {
@@ -1643,24 +2406,27 @@ export default function QuotationsPage() {
                       ].label
                     }
 
-                    <ChevronRight
-                      size={16}
-                    />
+                    <ChevronRight size={16} />
                   </button>
                 )}
+
               </div>
 
               {/* ITEMS */}
 
               <div>
+
                 <h3 className="font-semibold mb-3">
                   Quotation Items
                 </h3>
 
                 <div className="border border-white/10 rounded-xl overflow-hidden">
+
                   <table className="w-full">
+
                     <thead>
                       <tr className="bg-white/[0.02] border-b border-white/10 text-xs text-gray-500">
+
                         <th className="px-4 py-3 text-left">
                           Item
                         </th>
@@ -1676,17 +2442,21 @@ export default function QuotationsPage() {
                         <th className="px-4 py-3 text-right">
                           Total
                         </th>
+
                       </tr>
                     </thead>
 
                     <tbody>
+
                       {selectedQuotation.items.map(
                         (item) => (
                           <tr
                             key={item.id}
                             className="border-b border-white/5"
                           >
+
                             <td className="px-4 py-3">
+
                               <div className="text-sm font-medium">
                                 {
                                   item.name ||
@@ -1699,12 +2469,11 @@ export default function QuotationsPage() {
                                   item.description
                                 }
                               </div>
+
                             </td>
 
                             <td className="px-4 py-3 text-sm">
-                              {
-                                item.quantity
-                              }
+                              {item.quantity}
                             </td>
 
                             <td className="px-4 py-3 text-sm">
@@ -1719,18 +2488,25 @@ export default function QuotationsPage() {
                                   item.rate
                               )}
                             </td>
+
                           </tr>
                         )
                       )}
+
                     </tbody>
+
                   </table>
+
                 </div>
+
               </div>
 
-              {/* TOTALS */}
+              {/* TOTAL */}
 
               <div className="flex justify-end">
+
                 <div className="w-full md:w-80 bg-[#080b12] border border-white/10 rounded-xl p-4 space-y-3">
+
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">
                       Subtotal
@@ -1783,6 +2559,7 @@ export default function QuotationsPage() {
                   </div>
 
                   <div className="border-t border-white/10 pt-3 flex justify-between font-bold">
+
                     <span>
                       Total
                     </span>
@@ -1794,14 +2571,18 @@ export default function QuotationsPage() {
                         )
                       )}
                     </span>
+
                   </div>
+
                 </div>
+
               </div>
 
               {/* NOTES */}
 
               {selectedQuotation.notes && (
                 <div>
+
                   <h3 className="font-semibold mb-3">
                     Notes
                   </h3>
@@ -1811,12 +2592,29 @@ export default function QuotationsPage() {
                       selectedQuotation.notes
                     }
                   </div>
+
                 </div>
               )}
 
               {/* ACTIONS */}
 
               <div className="flex flex-wrap gap-2 border-t border-white/10 pt-5">
+
+                <button
+                  onClick={() => openQuotationPreview(selectedQuotation)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-600/15 text-orange-300 hover:bg-orange-600/25 text-sm"
+                >
+                  <Printer size={16} />
+                  Print / PDF
+                </button>
+
+                <button
+                  onClick={() => downloadQuotationPdf(selectedQuotation)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-sm"
+                >
+                  <Download size={16} />
+                  Save PDF
+                </button>
 
                 <button
                   onClick={() =>
@@ -1856,9 +2654,7 @@ export default function QuotationsPage() {
 
                 <button
                   onClick={() =>
-                    setShowHistoryModal(
-                      true
-                    )
+                    setShowHistoryModal(true)
                   }
                   className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-sm"
                 >
@@ -1870,15 +2666,11 @@ export default function QuotationsPage() {
                   "ACCEPTED" && (
                   <button
                     onClick={() =>
-                      setShowPaymentModal(
-                        true
-                      )
+                      setShowPaymentModal(true)
                     }
                     className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm"
                   >
-                    <CreditCard
-                      size={16}
-                    />
+                    <CreditCard size={16} />
                     Create Payment
                   </button>
                 )}
@@ -1888,31 +2680,31 @@ export default function QuotationsPage() {
                     setDeletingQuotation(
                       selectedQuotation
                     );
-                    setShowDeleteModal(
-                      true
-                    );
+                    setShowDeleteModal(true);
                   }}
                   className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 text-red-300 hover:bg-red-500/20 text-sm"
                 >
                   <Trash2 size={16} />
                   Delete
                 </button>
+
               </div>
 
               <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-4 text-sm text-gray-400">
+
                 <strong className="text-blue-300">
                   Workflow:
                 </strong>{" "}
-                Accepted quotation → Payment
-                verification → Billing / Invoice →
-                Project Handover.
+                Accepted quotation → Payment verification → Billing / Invoice → Project Handover.
+
               </div>
+
             </div>
           </div>
         </div>
       )}
 
-      {/* ADD / EDIT MODAL */}
+      {/* ADD / EDIT */}
 
       {(showAddModal ||
         editingQuotation) && (
@@ -1924,10 +2716,7 @@ export default function QuotationsPage() {
           }
           form={form}
           setForm={setForm}
-          onClose={() => {
-            setShowAddModal(false);
-            setEditingQuotation(null);
-          }}
+          onClose={closeForm}
           onSave={saveQuotation}
           onAddItem={addItem}
           onUpdateItem={updateItem}
@@ -1935,14 +2724,27 @@ export default function QuotationsPage() {
         />
       )}
 
-      {/* ASSIGN EMPLOYEE MODAL */}
+      {showQuotationPreview && selectedQuotation && (
+        <QuotationPreviewModal
+          quotation={selectedQuotation}
+          theme={quotationTheme}
+          onThemeChange={setQuotationTheme}
+          onClose={() => setShowQuotationPreview(false)}
+          onPrint={() => printQuotation(selectedQuotation)}
+          onDownloadPdf={() => downloadQuotationPdf(selectedQuotation)}
+        />
+      )}
+
+      {/* ASSIGN */}
 
       {showAssignModal &&
         assigningQuotation && (
           <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4">
+
             <div className="bg-[#0d111a] border border-white/10 rounded-2xl w-full max-w-lg shadow-2xl">
 
               <div className="p-5 border-b border-white/10 flex items-center justify-between">
+
                 <div>
                   <h2 className="text-lg font-bold">
                     Assign Employee
@@ -1957,31 +2759,27 @@ export default function QuotationsPage() {
 
                 <button
                   onClick={() => {
-                    setShowAssignModal(
-                      false
-                    );
-                    setAssigningQuotation(
-                      null
-                    );
+                    setShowAssignModal(false);
+                    setAssigningQuotation(null);
                   }}
                   className="p-2 hover:bg-white/10 rounded-lg"
                 >
                   <X size={18} />
                 </button>
+
               </div>
 
               <div className="p-5">
 
                 <div className="relative mb-4">
+
                   <Search
                     size={17}
                     className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
                   />
 
                   <input
-                    value={
-                      employeeSearch
-                    }
+                    value={employeeSearch}
                     onChange={(e) =>
                       setEmployeeSearch(
                         e.target.value
@@ -1990,20 +2788,21 @@ export default function QuotationsPage() {
                     placeholder="Search employee..."
                     className="w-full bg-[#080b12] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm outline-none"
                   />
+
                 </div>
 
                 <div className="space-y-2 max-h-72 overflow-y-auto">
+
                   {filteredEmployees.map(
                     (employee) => {
+
                       const selected =
                         assigningQuotation.assignedEmployeeId ===
                         employee.id;
 
                       return (
                         <button
-                          key={
-                            employee.id
-                          }
+                          key={employee.id}
                           onClick={() =>
                             assignEmployee(
                               employee.id
@@ -2015,23 +2814,20 @@ export default function QuotationsPage() {
                               : "border-white/10 hover:bg-white/5"
                           }`}
                         >
+
                           <div className="w-9 h-9 rounded-full bg-blue-500/10 text-blue-300 flex items-center justify-center text-sm font-semibold">
                             {employee.name
                               .split(" ")
                               .map(
-                                (
-                                  part
-                                ) =>
+                                (part) =>
                                   part[0]
                               )
                               .join("")
-                              .slice(
-                                0,
-                                2
-                              )}
+                              .slice(0, 2)}
                           </div>
 
                           <div className="flex-1">
+
                             <div className="text-sm font-medium">
                               {
                                 employee.name
@@ -2047,20 +2843,21 @@ export default function QuotationsPage() {
                                 employee.role
                               }
                             </div>
+
                           </div>
 
                           {selected && (
                             <Check
-                              size={
-                                18
-                              }
+                              size={18}
                               className="text-blue-400"
                             />
                           )}
+
                         </button>
                       );
                     }
                   )}
+
                 </div>
 
                 <button
@@ -2071,16 +2868,18 @@ export default function QuotationsPage() {
                 >
                   Remove Assignment
                 </button>
+
               </div>
             </div>
           </div>
         )}
 
-      {/* DELETE MODAL */}
+      {/* DELETE */}
 
       {showDeleteModal &&
         deletingQuotation && (
           <div className="fixed inset-0 z-[70] bg-black/70 flex items-center justify-center p-4">
+
             <div className="bg-[#0d111a] border border-white/10 rounded-2xl w-full max-w-md p-5 shadow-2xl">
 
               <div className="w-12 h-12 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center mb-4">
@@ -2092,26 +2891,21 @@ export default function QuotationsPage() {
               </h2>
 
               <p className="text-sm text-gray-500 mt-2">
-                Are you sure you want to
-                delete{" "}
+                Are you sure you want to delete{" "}
                 <span className="text-gray-300">
                   {
                     deletingQuotation.quotationNo
                   }
                 </span>
-                ? This action cannot be
-                undone.
+                ?
               </p>
 
               <div className="flex justify-end gap-2 mt-6">
+
                 <button
                   onClick={() => {
-                    setShowDeleteModal(
-                      false
-                    );
-                    setDeletingQuotation(
-                      null
-                    );
+                    setShowDeleteModal(false);
+                    setDeletingQuotation(null);
                   }}
                   className="px-4 py-2 rounded-lg border border-white/10 text-sm"
                 >
@@ -2124,19 +2918,23 @@ export default function QuotationsPage() {
                 >
                   Delete
                 </button>
+
               </div>
+
             </div>
           </div>
         )}
 
-      {/* HISTORY MODAL */}
+      {/* HISTORY */}
 
       {showHistoryModal &&
         selectedQuotation && (
           <div className="fixed inset-0 z-[80] bg-black/70 flex items-center justify-center p-4">
+
             <div className="bg-[#0d111a] border border-white/10 rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto shadow-2xl">
 
               <div className="p-5 border-b border-white/10 flex items-center justify-between">
+
                 <div>
                   <h2 className="text-lg font-bold">
                     Version History
@@ -2151,90 +2949,105 @@ export default function QuotationsPage() {
 
                 <button
                   onClick={() =>
-                    setShowHistoryModal(
-                      false
-                    )
+                    setShowHistoryModal(false)
                   }
                   className="p-2 rounded-lg hover:bg-white/10"
                 >
                   <X size={18} />
                 </button>
+
               </div>
 
               <div className="p-5 space-y-3">
+
                 {selectedQuotation.versions
                   .slice()
                   .reverse()
-                  .map((version) => (
-                    <div
-                      key={`${version.version}-${version.date}-${version.note}`}
-                      className="bg-[#080b12] border border-white/10 rounded-xl p-4"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-semibold">
-                              Version{" "}
-                              {
-                                version.version
-                              }
-                            </span>
+                  .map(
+                    (version, index) => (
+                      <div
+                        key={`${version.version}-${version.date}-${version.note}-${index}`}
+                        className="bg-[#080b12] border border-white/10 rounded-xl p-4"
+                      >
 
-                            <span
-                              className={`px-2 py-1 rounded-md border text-[11px] ${
-                                statusConfig[
-                                  version.status
-                                ].className
-                              }`}
-                            >
+                        <div className="flex items-start justify-between gap-3">
+
+                          <div>
+
+                            <div className="flex items-center gap-2 flex-wrap">
+
+                              <span className="font-semibold">
+                                Version{" "}
+                                {
+                                  version.version
+                                }
+                              </span>
+
+                              <span
+                                className={`px-2 py-1 rounded-md border text-[11px] ${
+                                  statusConfig[
+                                    version.status
+                                  ].className
+                                }`}
+                              >
+                                {
+                                  statusConfig[
+                                    version.status
+                                  ].label
+                                }
+                              </span>
+
+                            </div>
+
+                            <p className="text-sm text-gray-400 mt-2">
                               {
-                                statusConfig[
-                                  version.status
-                                ].label
+                                version.note
                               }
-                            </span>
+                            </p>
+
                           </div>
 
-                          <p className="text-sm text-gray-400 mt-2">
-                            {
-                              version.note
-                            }
-                          </p>
+                          <div className="text-right">
+
+                            <p className="font-semibold">
+                              {formatCurrency(
+                                version.amount
+                              )}
+                            </p>
+
+                            <p className="text-xs text-gray-500 mt-1">
+                              {
+                                version.date
+                              }
+                            </p>
+
+                          </div>
+
                         </div>
 
-                        <div className="text-right">
-                          <p className="font-semibold">
-                            {formatCurrency(
-                              version.amount
-                            )}
-                          </p>
-
-                          <p className="text-xs text-gray-500 mt-1">
-                            {
-                              version.date
-                            }
-                          </p>
+                        <div className="text-xs text-gray-500 mt-3">
+                          Created by{" "}
+                          {
+                            version.createdBy
+                          }
                         </div>
-                      </div>
 
-                      <div className="text-xs text-gray-500 mt-3">
-                        Created by{" "}
-                        {
-                          version.createdBy
-                        }
                       </div>
-                    </div>
-                  ))}
+                    )
+                  )}
+
               </div>
+
             </div>
           </div>
         )}
 
-      {/* PAYMENT MODAL */}
+      {/* PAYMENT */}
 
       {showPaymentModal &&
         selectedQuotation && (
           <div className="fixed inset-0 z-[80] bg-black/70 flex items-center justify-center p-4">
+
             <div className="bg-[#0d111a] border border-white/10 rounded-2xl w-full max-w-md p-5 shadow-2xl">
 
               <div className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-4">
@@ -2246,9 +3059,7 @@ export default function QuotationsPage() {
               </h2>
 
               <p className="text-sm text-gray-500 mt-2">
-                This quotation is accepted
-                and can move to the Payment
-                module.
+                This accepted quotation can move to the Payment module.
               </p>
 
               <div className="bg-[#080b12] border border-white/10 rounded-xl p-4 mt-4 space-y-2">
@@ -2290,15 +3101,14 @@ export default function QuotationsPage() {
                     )}
                   </span>
                 </div>
+
               </div>
 
               <div className="flex justify-end gap-2 mt-5">
 
                 <button
                   onClick={() =>
-                    setShowPaymentModal(
-                      false
-                    )
+                    setShowPaymentModal(false)
                   }
                   className="px-4 py-2 rounded-lg border border-white/10 text-sm"
                 >
@@ -2307,29 +3117,30 @@ export default function QuotationsPage() {
 
                 <button
                   onClick={() => {
-                    setShowPaymentModal(
-                      false
-                    );
+                    setShowPaymentModal(false);
 
                     alert(
-                      "Payment module connection is ready. Backend integration will create the actual payment record."
+                      "Payment module connection is ready."
                     );
                   }}
                   className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm"
                 >
                   Continue to Payment
                 </button>
+
               </div>
+
             </div>
           </div>
         )}
+
     </div>
   );
 }
 
-/* =======================================================
+/* =====================================================
    INFO BOX
-======================================================= */
+===================================================== */
 
 function InfoBox({
   label,
@@ -2340,6 +3151,7 @@ function InfoBox({
 }) {
   return (
     <div className="bg-[#080b12] border border-white/10 rounded-xl p-3">
+
       <p className="text-xs text-gray-500 mb-1">
         {label}
       </p>
@@ -2347,13 +3159,14 @@ function InfoBox({
       <p className="text-sm text-gray-200 break-words">
         {value || "-"}
       </p>
+
     </div>
   );
 }
 
-/* =======================================================
-   QUOTATION FORM MODAL
-======================================================= */
+/* =====================================================
+   QUOTATION FORM
+===================================================== */
 
 function QuotationFormModal({
   title,
@@ -2383,17 +3196,23 @@ function QuotationFormModal({
   ) => void;
 }) {
   const subtotal =
-    calculateSubtotal(
-      form.items
-    );
+    calculateSubtotal(form.items);
 
   const taxable = Math.max(
-    subtotal - form.discount,
+    subtotal -
+      Math.max(
+        Number(form.discount) || 0,
+        0
+      ),
     0
   );
 
   const taxAmount =
-    (taxable * form.tax) /
+    (taxable *
+      Math.max(
+        Number(form.tax) || 0,
+        0
+      )) /
     100;
 
   const total =
@@ -2401,10 +3220,13 @@ function QuotationFormModal({
 
   return (
     <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4">
+
       <div className="bg-[#0d111a] border border-white/10 rounded-2xl w-full max-w-6xl max-h-[92vh] overflow-y-auto shadow-2xl">
 
         <div className="sticky top-0 z-10 bg-[#0d111a] p-5 border-b border-white/10 flex items-center justify-between">
+
           <div>
+
             <h2 className="text-xl font-bold">
               {title}
             </h2>
@@ -2412,6 +3234,7 @@ function QuotationFormModal({
             <p className="text-xs text-gray-500 mt-1">
               Quotation details and pricing
             </p>
+
           </div>
 
           <button
@@ -2420,6 +3243,7 @@ function QuotationFormModal({
           >
             <X size={20} />
           </button>
+
         </div>
 
         <div className="p-5 space-y-6">
@@ -2427,6 +3251,7 @@ function QuotationFormModal({
           {/* CUSTOMER */}
 
           <div>
+
             <h3 className="font-semibold mb-3">
               Customer Information
             </h3>
@@ -2435,95 +3260,67 @@ function QuotationFormModal({
 
               <Input
                 label="Quotation Number"
-                value={
-                  form.quotationNo
-                }
+                value={form.quotationNo}
                 onChange={(value) =>
-                  setForm(
-                    (current) => ({
-                      ...current,
-                      quotationNo:
-                        value,
-                    })
-                  )
+                  setForm((current) => ({
+                    ...current,
+                    quotationNo: value,
+                  }))
                 }
               />
 
               <Input
                 label="Customer Name"
-                value={
-                  form.customerName
-                }
+                value={form.customerName}
                 onChange={(value) =>
-                  setForm(
-                    (current) => ({
-                      ...current,
-                      customerName:
-                        value,
-                    })
-                  )
+                  setForm((current) => ({
+                    ...current,
+                    customerName: value,
+                  }))
                 }
               />
 
               <Input
                 label="Company"
-                value={
-                  form.company
-                }
+                value={form.company}
                 onChange={(value) =>
-                  setForm(
-                    (current) => ({
-                      ...current,
-                      company:
-                        value,
-                    })
-                  )
+                  setForm((current) => ({
+                    ...current,
+                    company: value,
+                  }))
                 }
               />
 
               <Input
                 label="Email"
-                value={
-                  form.email
-                }
+                value={form.email}
                 onChange={(value) =>
-                  setForm(
-                    (current) => ({
-                      ...current,
-                      email: value,
-                    })
-                  )
+                  setForm((current) => ({
+                    ...current,
+                    email: value,
+                  }))
                 }
               />
 
               <Input
                 label="Phone"
-                value={
-                  form.phone
-                }
+                value={form.phone}
                 onChange={(value) =>
-                  setForm(
-                    (current) => ({
-                      ...current,
-                      phone: value,
-                    })
-                  )
+                  setForm((current) => ({
+                    ...current,
+                    phone: value,
+                  }))
                 }
               />
 
               <Input
                 label="Product / Service"
-                value={
-                  form.product
-                }
+                value={form.product}
                 onChange={(value) =>
-                  setForm(
-                    (current) => ({
-                      ...current,
-                      product:
-                        value,
-                    })
-                  )
+                  setForm((current) => ({
+                    ...current,
+                    product: value,
+                  }))
                 }
               />
 
@@ -2533,64 +3330,50 @@ function QuotationFormModal({
                   form.leadId || ""
                 )}
                 onChange={(value) =>
-                  setForm(
-                    (current) => ({
-                      ...current,
-                      leadId:
-                        Number(
-                          value
-                        ) || 0,
-                    })
-                  )
+                  setForm((current) => ({
+                    ...current,
+                    leadId:
+                      Number(value) || 0,
+                  }))
                 }
                 type="number"
               />
 
               <Input
                 label="Valid Until"
-                value={
-                  form.validUntil
-                }
+                value={form.validUntil}
                 onChange={(value) =>
-                  setForm(
-                    (current) => ({
-                      ...current,
-                      validUntil:
-                        value,
-                    })
-                  )
+                  setForm((current) => ({
+                    ...current,
+                    validUntil: value,
+                  }))
                 }
                 type="date"
               />
 
               <div>
+
                 <label className="block text-xs text-gray-500 mb-1.5">
                   Status
                 </label>
 
                 <select
-                  value={
-                    form.status
-                  }
+                  value={form.status}
                   onChange={(e) =>
-                    setForm(
-                      (current) => ({
-                        ...current,
-                        status:
-                          e.target
-                            .value as QuotationStatus,
-                      })
-                    )
+                    setForm((current) => ({
+                      ...current,
+                      status:
+                        e.target
+                          .value as QuotationStatus,
+                    }))
                   }
                   className="w-full bg-[#080b12] border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none"
                 >
+
                   {Object.entries(
                     statusConfig
                   ).map(
-                    ([
-                      value,
-                      config,
-                    ]) => (
+                    ([value, config]) => (
                       <option
                         key={value}
                         value={value}
@@ -2601,30 +3384,29 @@ function QuotationFormModal({
                       </option>
                     )
                   )}
+
                 </select>
+
               </div>
 
               <div>
+
                 <label className="block text-xs text-gray-500 mb-1.5">
                   Payment Terms
                 </label>
 
                 <select
-                  value={
-                    form.paymentTerms
-                  }
+                  value={form.paymentTerms}
                   onChange={(e) =>
-                    setForm(
-                      (current) => ({
-                        ...current,
-                        paymentTerms:
-                          e.target
-                            .value,
-                      })
-                    )
+                    setForm((current) => ({
+                      ...current,
+                      paymentTerms:
+                        e.target.value,
+                    }))
                   }
                   className="w-full bg-[#080b12] border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none"
                 >
+
                   <option>
                     50% advance, 50% after completion
                   </option>
@@ -2640,15 +3422,21 @@ function QuotationFormModal({
                   <option>
                     100% after completion
                   </option>
+
                 </select>
+
               </div>
+
             </div>
+
           </div>
 
           {/* ITEMS */}
 
           <div>
+
             <div className="flex items-center justify-between mb-3">
+
               <h3 className="font-semibold">
                 Quotation Items
               </h3>
@@ -2660,23 +3448,25 @@ function QuotationFormModal({
                 <Plus size={16} />
                 Add Item
               </button>
+
             </div>
 
             <div className="space-y-3">
+
               {form.items.map(
                 (item, index) => (
                   <div
                     key={item.id}
                     className="bg-[#080b12] border border-white/10 rounded-xl p-4"
                   >
+
                     <div className="flex items-center justify-between mb-3">
+
                       <span className="text-xs text-gray-500">
-                        Item{" "}
-                        {index + 1}
+                        Item {index + 1}
                       </span>
 
-                      {form.items
-                        .length >
+                      {form.items.length >
                         1 && (
                         <button
                           onClick={() =>
@@ -2686,25 +3476,18 @@ function QuotationFormModal({
                           }
                           className="text-red-400 hover:text-red-300"
                         >
-                          <Trash2
-                            size={
-                              16
-                            }
-                          />
+                          <Trash2 size={16} />
                         </button>
                       )}
+
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
 
                       <Input
                         label="Item Name"
-                        value={
-                          item.name
-                        }
-                        onChange={(
-                          value
-                        ) =>
+                        value={item.name}
+                        onChange={(value) =>
                           onUpdateItem(
                             item.id,
                             "name",
@@ -2718,9 +3501,7 @@ function QuotationFormModal({
                         value={
                           item.description
                         }
-                        onChange={(
-                          value
-                        ) =>
+                        onChange={(value) =>
                           onUpdateItem(
                             item.id,
                             "description",
@@ -2735,15 +3516,11 @@ function QuotationFormModal({
                         value={String(
                           item.quantity
                         )}
-                        onChange={(
-                          value
-                        ) =>
+                        onChange={(value) =>
                           onUpdateItem(
                             item.id,
                             "quantity",
-                            Number(
-                              value
-                            )
+                            Number(value)
                           )
                         }
                       />
@@ -2754,33 +3531,36 @@ function QuotationFormModal({
                         value={String(
                           item.rate
                         )}
-                        onChange={(
-                          value
-                        ) =>
+                        onChange={(value) =>
                           onUpdateItem(
                             item.id,
                             "rate",
-                            Number(
-                              value
-                            )
+                            Number(value)
                           )
                         }
                       />
+
                     </div>
 
                     <div className="mt-3 text-right text-sm">
+
                       Item Total:{" "}
+
                       <span className="font-semibold text-blue-400">
                         {formatCurrency(
                           item.quantity *
                             item.rate
                         )}
                       </span>
+
                     </div>
+
                   </div>
                 )
               )}
+
             </div>
+
           </div>
 
           {/* PRICING */}
@@ -2788,28 +3568,25 @@ function QuotationFormModal({
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
             <div>
+
               <label className="block text-xs text-gray-500 mb-1.5">
                 Notes
               </label>
 
               <textarea
-                value={
-                  form.notes
-                }
+                value={form.notes}
                 onChange={(e) =>
-                  setForm(
-                    (current) => ({
-                      ...current,
-                      notes:
-                        e.target
-                          .value,
-                    })
-                  )
+                  setForm((current) => ({
+                    ...current,
+                    notes:
+                      e.target.value,
+                  }))
                 }
                 rows={7}
                 placeholder="Quotation notes..."
                 className="w-full bg-[#080b12] border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none resize-none"
               />
+
             </div>
 
             <div className="bg-[#080b12] border border-white/10 rounded-xl p-4">
@@ -2821,6 +3598,7 @@ function QuotationFormModal({
               <div className="space-y-4">
 
                 <div className="flex justify-between text-sm">
+
                   <span className="text-gray-500">
                     Subtotal
                   </span>
@@ -2830,61 +3608,71 @@ function QuotationFormModal({
                       subtotal
                     )}
                   </span>
+
                 </div>
 
                 <div className="flex items-center justify-between gap-4">
+
                   <span className="text-sm text-gray-500">
                     Discount
                   </span>
 
                   <input
                     type="number"
-                    value={
-                      form.discount
-                    }
+                    min="0"
+                    value={form.discount}
                     onChange={(e) =>
-                      setForm(
-                        (current) => ({
-                          ...current,
-                          discount:
+                      setForm((current) => ({
+                        ...current,
+                        discount:
+                          Math.max(
                             Number(
                               e.target
                                 .value
                             ) || 0,
-                        })
-                      )
+                            0
+                          ),
+                      }))
                     }
                     className="w-32 bg-[#0d111a] border border-white/10 rounded-lg px-3 py-2 text-sm text-right outline-none"
                   />
+
                 </div>
 
                 <div className="flex items-center justify-between gap-4">
+
                   <span className="text-sm text-gray-500">
                     GST %
                   </span>
 
                   <input
                     type="number"
-                    value={
-                      form.tax
-                    }
+                    min="0"
+                    max="100"
+                    value={form.tax}
                     onChange={(e) =>
-                      setForm(
-                        (current) => ({
-                          ...current,
-                          tax:
-                            Number(
-                              e.target
-                                .value
-                            ) || 0,
-                        })
-                      )
+                      setForm((current) => ({
+                        ...current,
+                        tax:
+                          Math.min(
+                            Math.max(
+                              Number(
+                                e.target
+                                  .value
+                              ) || 0,
+                              0
+                            ),
+                            100
+                          ),
+                      }))
                     }
                     className="w-32 bg-[#0d111a] border border-white/10 rounded-lg px-3 py-2 text-sm text-right outline-none"
                   />
+
                 </div>
 
                 <div className="flex justify-between text-sm">
+
                   <span className="text-gray-500">
                     GST Amount
                   </span>
@@ -2894,9 +3682,11 @@ function QuotationFormModal({
                       taxAmount
                     )}
                   </span>
+
                 </div>
 
                 <div className="border-t border-white/10 pt-4 flex justify-between">
+
                   <span className="font-semibold">
                     Grand Total
                   </span>
@@ -2906,10 +3696,31 @@ function QuotationFormModal({
                       total
                     )}
                   </span>
+
                 </div>
+
               </div>
+
             </div>
+
           </div>
+
+          {/* AUTHORIZED SIGNATURE */}
+
+          <FormSection
+            title="Authorized Signature"
+            subtitle="Upload the signature that should appear on the customer-facing quotation."
+          >
+            <SignatureUpload
+              value={form.signatureDataUrl || ""}
+              onChange={(value) =>
+                setForm((current) => ({
+                  ...current,
+                  signatureDataUrl: value,
+                }))
+              }
+            />
+          </FormSection>
 
           {/* SAVE */}
 
@@ -2929,16 +3740,454 @@ function QuotationFormModal({
               <Check size={17} />
               Save Quotation
             </button>
+
           </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  );
+}
+
+/* =====================================================
+   QUOTATION PREVIEW / PRINT / PDF
+===================================================== */
+
+function QuotationPreviewModal({
+  quotation,
+  theme,
+  onThemeChange,
+  onClose,
+  onPrint,
+  onDownloadPdf,
+}: {
+  quotation: Quotation;
+  theme: QuotationTheme;
+  onThemeChange: (theme: QuotationTheme) => void;
+  onClose: () => void;
+  onPrint: () => void;
+  onDownloadPdf: () => void;
+}) {
+  const config = quotationThemes[theme];
+  const isDark = theme === "premium";
+  const totals = calculateQuotationTotals(quotation);
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-black/80 p-3 sm:p-5 flex items-center justify-center">
+      <div className="w-full max-w-7xl max-h-[95vh] overflow-hidden rounded-2xl border border-white/10 bg-[#0d111a] shadow-2xl flex flex-col">
+        <div className="flex flex-col gap-4 border-b border-white/10 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-sm text-orange-400">
+              <Palette size={16} />
+              Customer-facing quotation
+            </div>
+            <h2 className="mt-1 text-xl font-bold sm:text-2xl">
+              {quotation.quotationNo}
+            </h2>
+            <p className="mt-1 text-xs text-gray-500">
+              Choose a theme, then print or save the quotation as a PDF.
+            </p>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="self-end rounded-lg p-2 hover:bg-white/10 lg:self-auto"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+          <div className="mb-4 flex flex-wrap gap-2">
+            {(Object.keys(quotationThemes) as QuotationTheme[]).map((key) => {
+              const item = quotationThemes[key];
+              return (
+                <button
+                  key={key}
+                  onClick={() => onThemeChange(key)}
+                  className={`rounded-xl border px-3 py-2 text-left transition ${
+                    theme === key
+                      ? "border-orange-500 bg-orange-500/10"
+                      : "border-white/10 hover:bg-white/5"
+                  }`}
+                >
+                  <div className="text-sm font-semibold text-gray-100">
+                    {item.name}
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-gray-500">
+                    {item.description}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mb-4 rounded-xl border border-orange-500/10 bg-orange-500/5 p-3 text-xs text-gray-400">
+            <span className="font-semibold text-orange-300">Branding locked:</span>{" "}
+            TIVRA logo, original orange logo color, company name and “AI Business & CRM Solutions” headline remain unchanged across all themes.
+          </div>
+
+          <div className="overflow-auto rounded-xl bg-gray-200 p-3 sm:p-5">
+            <div
+              className="mx-auto overflow-hidden shadow-xl"
+              style={{
+                width: "794px",
+                minHeight: "1123px",
+                backgroundColor: isDark ? "#111827" : "#ffffff",
+                color: isDark ? "#f9fafb" : config.text,
+                fontFamily: "Arial, Helvetica, sans-serif",
+              }}
+            >
+              <div
+                className="m-8 rounded-2xl px-7 py-6"
+                style={{
+                  backgroundColor: isDark ? "#182033" : config.soft,
+                  borderBottom: `6px solid ${config.primary}`,
+                }}
+              >
+                <div className="flex items-start justify-between gap-6">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl text-lg font-extrabold text-white"
+                      style={{ backgroundColor: BRANDING.color }}
+                    >
+                      {BRANDING.logoMark}
+                    </div>
+                    <div>
+                      <div className="text-[26px] font-extrabold leading-none tracking-tight">
+                        {BRANDING.logoText}
+                      </div>
+                      <div
+                        className="mt-1 text-[11px]"
+                        style={{ color: BRANDING.mutedText }}
+                      >
+                        {BRANDING.headline}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <div
+                      className="text-[11px] font-extrabold tracking-[0.24em]"
+                      style={{ color: BRANDING.color }}
+                    >
+                      QUOTATION
+                    </div>
+                    <div className="mt-1 text-2xl font-extrabold">
+                      {quotation.quotationNo}
+                    </div>
+                    <div className="mt-2 text-[10px]" style={{ color: config.muted }}>
+                      Created: {displayDate(quotation.createdAt)}
+                    </div>
+                    <div className="mt-1 text-[10px]" style={{ color: config.muted }}>
+                      Valid Until: {displayDate(quotation.validUntil)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 px-8">
+                <div
+                  className="rounded-xl border p-4"
+                  style={{
+                    backgroundColor: isDark ? "#182033" : "#ffffff",
+                    borderColor: config.border,
+                  }}
+                >
+                  <div className="text-[10px] font-extrabold uppercase tracking-widest" style={{ color: config.muted }}>
+                    Bill To
+                  </div>
+                  <div className="mt-2 text-sm font-extrabold">
+                    {quotation.customerName || "Customer"}
+                  </div>
+                  <div className="mt-1 text-xs" style={{ color: config.muted }}>
+                    {quotation.company || "-"}
+                  </div>
+                  <div className="mt-1 text-xs" style={{ color: config.muted }}>
+                    {quotation.email || "-"}
+                  </div>
+                  <div className="mt-1 text-xs" style={{ color: config.muted }}>
+                    {quotation.phone || "-"}
+                  </div>
+                </div>
+
+                <div
+                  className="rounded-xl border p-4"
+                  style={{
+                    backgroundColor: isDark ? "#182033" : "#ffffff",
+                    borderColor: config.border,
+                  }}
+                >
+                  <div className="text-[10px] font-extrabold uppercase tracking-widest" style={{ color: config.muted }}>
+                    Reference
+                  </div>
+                  {[
+                    ["Product / Service", quotation.product || "-"],
+                    ["Lead ID", String(quotation.leadId || "-")],
+                    ["Assigned To", employeeName(quotation.assignedEmployeeId)],
+                    ["Payment Terms", quotation.paymentTerms || "-"],
+                  ].map(([label, value]) => (
+                    <div key={label} className="mt-2 flex justify-between gap-4 text-xs">
+                      <span style={{ color: config.muted }}>{label}</span>
+                      <span className="text-right font-semibold break-words">{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div
+                className="mx-8 mt-4 flex items-center justify-between rounded-xl px-4 py-2.5 text-xs font-bold text-white"
+                style={{ backgroundColor: config.primary }}
+              >
+                <span>{statusConfig[quotation.status].label.toUpperCase()}</span>
+                <span>
+                  {quotation.assignedEmployeeId
+                    ? `Assigned to ${employeeName(quotation.assignedEmployeeId)}`
+                    : "Assignment pending"}
+                </span>
+              </div>
+
+              <div className="px-8 pt-5">
+                <div className="mb-2 text-xs font-extrabold uppercase tracking-wider">
+                  Items / Services
+                </div>
+                <div className="overflow-hidden rounded-xl border" style={{ borderColor: config.border }}>
+                  <table className="w-full table-fixed text-xs">
+                    <thead style={{ backgroundColor: isDark ? "#182033" : config.soft }}>
+                      <tr className="text-left">
+                        <th className="w-[50%] px-3 py-3 text-[10px] uppercase tracking-wider" style={{ color: config.muted }}>Item / Description</th>
+                        <th className="w-[12%] px-2 py-3 text-center text-[10px] uppercase tracking-wider" style={{ color: config.muted }}>Qty</th>
+                        <th className="w-[18%] px-2 py-3 text-right text-[10px] uppercase tracking-wider" style={{ color: config.muted }}>Rate</th>
+                        <th className="w-[20%] px-3 py-3 text-right text-[10px] uppercase tracking-wider" style={{ color: config.muted }}>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {quotation.items.map((item) => (
+                        <tr key={item.id} className="border-t" style={{ borderColor: config.border }}>
+                          <td className="px-3 py-3 align-top">
+                            <div className="font-bold">{item.name || "Item"}</div>
+                            <div className="mt-1 text-[10px]" style={{ color: config.muted }}>{item.description || "-"}</div>
+                          </td>
+                          <td className="px-2 py-3 text-center align-top">{item.quantity}</td>
+                          <td className="px-2 py-3 text-right align-top">{formatCurrency(item.rate)}</td>
+                          <td className="px-3 py-3 text-right font-bold align-top">{formatCurrency(item.quantity * item.rate)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-[1fr_280px] gap-4 px-8 pt-5">
+                <div
+                  className="rounded-xl border p-4"
+                  style={{
+                    backgroundColor: isDark ? "#182033" : "#ffffff",
+                    borderColor: config.border,
+                    minHeight: "164px",
+                  }}
+                >
+                  <div className="text-[10px] font-extrabold uppercase tracking-widest" style={{ color: config.muted }}>
+                    Notes / Terms
+                  </div>
+                  <div className="mt-3 text-xs leading-relaxed">
+                    {quotation.notes || "Thank you for your business."}
+                  </div>
+                  <div className="mt-8 text-[10px]" style={{ color: config.muted }}>
+                    Payment Terms: {quotation.paymentTerms || "-"}
+                  </div>
+                </div>
+
+                <div
+                  className="rounded-xl p-4"
+                  style={{ backgroundColor: isDark ? "#182033" : config.soft }}
+                >
+                  <div className="flex justify-between text-xs">
+                    <span style={{ color: config.muted }}>Subtotal</span>
+                    <span>{formatCurrency(totals.subtotal)}</span>
+                  </div>
+                  <div className="mt-3 flex justify-between text-xs">
+                    <span style={{ color: config.muted }}>Discount</span>
+                    <span>{formatCurrency(totals.discount)}</span>
+                  </div>
+                  <div className="mt-3 flex justify-between text-xs">
+                    <span style={{ color: config.muted }}>GST ({quotation.tax || 0}%)</span>
+                    <span>{formatCurrency(totals.taxAmount)}</span>
+                  </div>
+                  <div
+                    className="mt-4 flex justify-between rounded-lg px-3 py-3 text-sm font-extrabold text-white"
+                    style={{ backgroundColor: config.primary }}
+                  >
+                    <span>Grand Total</span>
+                    <span>{formatCurrency(totals.total)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-end justify-between gap-8 px-8 pb-8 pt-7">
+                <div className="text-[10px] leading-relaxed" style={{ color: config.muted }}>
+                  <div className="font-extrabold" style={{ color: isDark ? "#f9fafb" : BRANDING.neutralText }}>
+                    {BRANDING.logoText}
+                  </div>
+                  {BRANDING.headline}
+                  <br />
+                  This is a system-generated quotation document.
+                </div>
+
+                <div className="w-48 text-center text-[10px]" style={{ color: config.muted }}>
+                  <div className="flex h-16 items-end justify-center">
+                    {quotation.signatureDataUrl ? (
+                      <img
+                        src={quotation.signatureDataUrl}
+                        alt="Authorized Signature"
+                        className="max-h-14 max-w-40 object-contain"
+                      />
+                    ) : null}
+                  </div>
+                  <div className="border-b" style={{ borderColor: config.border }} />
+                  <div className="pt-2">Authorized Signature</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap justify-end gap-2 border-t border-white/10 bg-[#0d111a] p-4 sm:p-5">
+          <button
+            onClick={onClose}
+            className="rounded-xl border border-white/10 px-4 py-2.5 text-sm hover:bg-white/5"
+          >
+            Close
+          </button>
+          <button
+            onClick={onPrint}
+            className="flex items-center gap-2 rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-medium hover:bg-orange-500"
+          >
+            <Printer size={16} />
+            Print Quotation
+          </button>
+          <button
+            onClick={onDownloadPdf}
+            className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium hover:bg-blue-500"
+          >
+            <Download size={16} />
+            Save PDF
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-/* =======================================================
-   INPUT COMPONENT
-======================================================= */
+/* =====================================================
+   AUTHORIZED SIGNATURE UPLOAD
+===================================================== */
+
+function FormSection({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section>
+      <h3 className="font-semibold">{title}</h3>
+      <p className="mt-1 mb-3 text-xs text-gray-500">{subtitle}</p>
+      {children}
+    </section>
+  );
+}
+
+function SignatureUpload({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      window.alert("Please upload a PNG or JPG signature image.");
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      window.alert("Signature image must be 2MB or smaller.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result === "string") {
+        onChange(result);
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-[#080b12] p-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="text-sm font-semibold">Authorized Signature</div>
+          <p className="mt-1 text-xs text-gray-500">
+            Upload PNG/JPG. The signature appears in quotation preview, print and PDF.
+          </p>
+        </div>
+
+        <label className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-2 text-sm text-blue-300 hover:bg-blue-500/20">
+          <input
+            type="file"
+            accept="image/png,image/jpeg"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+          {value ? "Change Signature" : "Upload Signature"}
+        </label>
+      </div>
+
+      <div className="mt-4 rounded-xl border border-dashed border-white/10 bg-black/10 p-4">
+        {value ? (
+          <div className="flex flex-col items-center gap-3">
+            <div className="flex h-24 w-full items-center justify-center rounded-lg bg-white">
+              <img
+                src={value}
+                alt="Authorized signature preview"
+                className="max-h-20 max-w-[260px] object-contain"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => onChange("")}
+              className="rounded-lg px-3 py-2 text-xs text-red-300 hover:bg-red-500/10"
+            >
+              Remove Signature
+            </button>
+          </div>
+        ) : (
+          <div className="py-6 text-center text-xs text-gray-500">
+            No signature uploaded. A blank signature line will be shown.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* =====================================================
+   INPUT
+===================================================== */
 
 function Input({
   label,
@@ -2955,6 +4204,7 @@ function Input({
 }) {
   return (
     <div>
+
       <label className="block text-xs text-gray-500 mb-1.5">
         {label}
       </label>
@@ -2969,6 +4219,7 @@ function Input({
         }
         className="w-full bg-[#080b12] border border-white/10 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-blue-500/50"
       />
+
     </div>
   );
 }

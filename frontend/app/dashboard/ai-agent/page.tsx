@@ -1,6 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
+import { usePersistentState } from "@/lib/persistence";
+
 import {
   Bot,
   CheckCircle2,
@@ -18,9 +28,14 @@ import {
   UserRound,
   X,
   Zap,
+  MoreHorizontal,
+  Trash2,
+  RotateCcw,
+  Menu,
+  Info,
 } from "lucide-react";
 
-type Sender = "customer" | "ai";
+type Sender = "customer" | "ai" | "human";
 
 type Message = {
   id: number;
@@ -92,7 +107,6 @@ const conversationsData: Conversation[] = [
       },
     ],
   },
-
   {
     id: 2,
     name: "Priya Shah",
@@ -133,7 +147,6 @@ const conversationsData: Conversation[] = [
       },
     ],
   },
-
   {
     id: 3,
     name: "Amit Patel",
@@ -168,7 +181,6 @@ const conversationsData: Conversation[] = [
       },
     ],
   },
-
   {
     id: 4,
     name: "Neha Desai",
@@ -203,7 +215,6 @@ const conversationsData: Conversation[] = [
       },
     ],
   },
-
   {
     id: 5,
     name: "Karan Joshi",
@@ -240,112 +251,369 @@ const conversationsData: Conversation[] = [
   },
 ];
 
-const aiReplies = [
+const DEFAULT_AI_REPLIES = [
   "Sure! I can help with that. Would you like me to arrange a demo with our sales team?",
   "Thanks for sharing that. Based on your requirement, TIVRA AI can help automate lead qualification and follow-ups.",
   "I understand. I can capture your requirement and pass it to our sales team for the next step.",
   "Absolutely. Let me help you with the next step and make sure your requirement is recorded.",
 ];
 
+function formatTime() {
+  return new Date().toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function generateAiReply(
+  message: string,
+  conversation: Conversation
+) {
+  const text = message.toLowerCase();
+
+  if (
+    text.includes("price") ||
+    text.includes("pricing") ||
+    text.includes("cost") ||
+    text.includes("plan")
+  ) {
+    return `Thanks for asking about pricing. TIVRA AI can be configured based on your business requirements. I can arrange a demo so our sales team can understand your needs and share the suitable plan.`;
+  }
+
+  if (
+    text.includes("demo") ||
+    text.includes("meeting") ||
+    text.includes("show me")
+  ) {
+    return `Absolutely. I can help arrange a TIVRA AI demo for you. Based on your current requirement of ${conversation.requirement.toLowerCase()}, a demo would be a good next step.`;
+  }
+
+  if (
+    text.includes("whatsapp") ||
+    text.includes("automation")
+  ) {
+    return `Yes. TIVRA AI supports WhatsApp-focused sales workflows including customer conversations, follow-ups and lead management. I can also help capture your exact automation requirement.`;
+  }
+
+  if (
+    text.includes("lead") ||
+    text.includes("crm")
+  ) {
+    return `TIVRA AI helps sales teams manage leads, track the sales pipeline, score leads with AI and manage follow-ups in one CRM platform.`;
+  }
+
+  if (
+    text.includes("quotation") ||
+    text.includes("quote")
+  ) {
+    return `I can help with quotation-related requirements as well. We can understand your requirements and prepare the next step with the sales team.`;
+  }
+
+  if (
+    text.includes("hello") ||
+    text.includes("hi") ||
+    text.includes("hey")
+  ) {
+    return `Hello! 👋 Welcome to TIVRA AI. I can help you with CRM, lead management, WhatsApp automation, follow-ups, quotations and demos. What would you like to know?`;
+  }
+
+  return DEFAULT_AI_REPLIES[
+    conversation.messages.length %
+      DEFAULT_AI_REPLIES.length
+  ];
+}
+
 export default function AISalesAgentPage() {
   const [conversations, setConversations] =
-    useState<Conversation[]>(conversationsData);
+    usePersistentState<Conversation[]>(
+      "tivra_ai_sales_conversations",
+      conversationsData
+    );
 
-  const [selectedConversationId, setSelectedConversationId] = useState(1);
+  const [selectedConversationId, setSelectedConversationId] =
+    useState(1);
 
   const [message, setMessage] = useState("");
 
-  const [humanTakeover, setHumanTakeover] = useState(false);
+  const [humanTakeover, setHumanTakeover] =
+    useState(false);
 
-  const [showCapabilities, setShowCapabilities] = useState(false);
+  const [autoReplyEnabled, setAutoReplyEnabled] =
+    useState(true);
 
-  const [showLeadDetails, setShowLeadDetails] = useState(false);
+  const [showCapabilities, setShowCapabilities] =
+    useState(false);
+
+  const [showLeadDetails, setShowLeadDetails] =
+    useState(false);
+
+  const [showSettings, setShowSettings] =
+    useState(false);
+
+  const [showChatMenu, setShowChatMenu] =
+    useState(false);
+
+  const [showMobileConversations, setShowMobileConversations] =
+    useState(false);
+
+  const [isGenerating, setIsGenerating] =
+    useState(false);
+
+  const aiTimerRef =
+    useRef<ReturnType<typeof setTimeout> | null>(
+      null
+    );
+
+  useEffect(() => {
+    return () => {
+      if (aiTimerRef.current) {
+        clearTimeout(aiTimerRef.current);
+      }
+    };
+  }, []);
 
   const selectedConversation =
     conversations.find(
-      (conversation) => conversation.id === selectedConversationId
+      (conversation) =>
+        conversation.id ===
+        selectedConversationId
     ) ?? conversations[0];
 
-  const messages = selectedConversation.messages;
+  const messages =
+    selectedConversation?.messages ?? [];
 
   const customerMessages = useMemo(
-    () => messages.filter((item) => item.sender === "customer"),
+    () =>
+      messages.filter(
+        (item) =>
+          item.sender === "customer"
+      ),
     [messages]
   );
 
-  const selectConversation = (id: number) => {
+  const selectedTemperature =
+    selectedConversation.score >= 80
+      ? "Hot"
+      : selectedConversation.score >= 60
+      ? "Warm"
+      : "Cold";
+
+  const aiConfidence = Math.min(
+    98,
+    selectedConversation.score + 2
+  );
+
+  const selectConversation = (
+    id: number
+  ) => {
+    if (aiTimerRef.current) {
+      clearTimeout(aiTimerRef.current);
+      aiTimerRef.current = null;
+    }
+
     setSelectedConversationId(id);
     setMessage("");
     setHumanTakeover(false);
+    setIsGenerating(false);
+    setShowMobileConversations(false);
+    setShowChatMenu(false);
+  };
+
+  const addMessageToConversation = (
+    conversationId: number,
+    newMessage: Message
+  ) => {
+    setConversations((prev) =>
+      prev.map((conversation) =>
+        conversation.id ===
+        conversationId
+          ? {
+              ...conversation,
+              lastMessage:
+                newMessage.text,
+              time: newMessage.time,
+              messages: [
+                ...conversation.messages,
+                newMessage,
+              ],
+            }
+          : conversation
+      )
+    );
   };
 
   const handleSend = () => {
     const trimmed = message.trim();
 
-    if (!trimmed) return;
+    if (
+      !trimmed ||
+      !selectedConversation ||
+      isGenerating
+    ) {
+      return;
+    }
 
-    const currentTime = new Date().toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    const conversationId =
+      selectedConversation.id;
 
-    const customerMessage: Message = {
-      id: Date.now(),
-      sender: "customer",
+    const sendAsHuman =
+      humanTakeover;
+
+    const currentTime =
+      formatTime();
+
+    const outgoingMessage: Message = {
+      id:
+        Date.now() +
+        Math.floor(
+          Math.random() * 1000
+        ),
+      sender: sendAsHuman
+        ? "human"
+        : "customer",
       text: trimmed,
       time: currentTime,
     };
 
-    setConversations((prev) =>
-      prev.map((conversation) =>
-        conversation.id === selectedConversationId
-          ? {
-              ...conversation,
-              lastMessage: trimmed,
-              time: currentTime,
-              messages: [...conversation.messages, customerMessage],
-            }
-          : conversation
-      )
+    addMessageToConversation(
+      conversationId,
+      outgoingMessage
     );
 
     setMessage("");
 
-    if (!humanTakeover) {
+    if (
+      sendAsHuman ||
+      !autoReplyEnabled
+    ) {
+      return;
+    }
+
+    const currentConversation =
+      conversations.find(
+        (conversation) =>
+          conversation.id ===
+          conversationId
+      );
+
+    if (!currentConversation) {
+      return;
+    }
+
+    setIsGenerating(true);
+
+    aiTimerRef.current =
       setTimeout(() => {
         const reply =
-          aiReplies[Math.floor(Math.random() * aiReplies.length)];
+          generateAiReply(
+            trimmed,
+            currentConversation
+          );
 
         const aiMessage: Message = {
-          id: Date.now() + 1,
+          id:
+            Date.now() +
+            Math.floor(
+              Math.random() * 1000
+            ),
           sender: "ai",
           text: reply,
-          time: new Date().toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
+          time: formatTime(),
         };
 
-        setConversations((prev) =>
-          prev.map((conversation) =>
-            conversation.id === selectedConversationId
-              ? {
-                  ...conversation,
-                  lastMessage: reply,
-                  time: aiMessage.time,
-                  messages: [...conversation.messages, aiMessage],
-                }
-              : conversation
-          )
+        addMessageToConversation(
+          conversationId,
+          aiMessage
         );
-      }, 700);
+
+        setIsGenerating(false);
+        aiTimerRef.current = null;
+      }, 800);
+  };
+
+  const clearSelectedConversation =
+    () => {
+      if (!selectedConversation) {
+        return;
+      }
+
+      const confirmed =
+        window.confirm(
+          `Clear conversation with ${selectedConversation.name}?`
+        );
+
+      if (!confirmed) {
+        return;
+      }
+
+      if (aiTimerRef.current) {
+        clearTimeout(aiTimerRef.current);
+        aiTimerRef.current = null;
+      }
+
+      setConversations((prev) =>
+        prev.map((conversation) =>
+          conversation.id ===
+          selectedConversation.id
+            ? {
+                ...conversation,
+                lastMessage:
+                  "Conversation cleared",
+                time: formatTime(),
+                messages: [],
+              }
+            : conversation
+        )
+      );
+
+      setShowChatMenu(false);
+      setIsGenerating(false);
+    };
+
+  const resetDemoData = () => {
+    const confirmed =
+      window.confirm(
+        "Reset all AI Sales Agent demo conversations?"
+      );
+
+    if (!confirmed) {
+      return;
     }
+
+    if (aiTimerRef.current) {
+      clearTimeout(aiTimerRef.current);
+      aiTimerRef.current = null;
+    }
+
+    const resetData =
+      conversationsData.map(
+        (conversation) => ({
+          ...conversation,
+          messages:
+            conversation.messages.map(
+              (item) => ({
+                ...item,
+              })
+            ),
+        })
+      );
+
+    setConversations(resetData);
+    setSelectedConversationId(1);
+    setMessage("");
+    setHumanTakeover(false);
+    setIsGenerating(false);
+    setShowSettings(false);
   };
 
   return (
     <main className="min-h-[calc(100vh-73px)] bg-slate-50 px-4 py-6 text-slate-950 dark:bg-[#070c1b] dark:text-white sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1500px] space-y-6">
-        {/* HEADER */}
+
+        {/* =====================================================
+            HEADER
+        ===================================================== */}
+
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <div className="mb-2 flex items-center gap-2">
@@ -363,24 +631,65 @@ export default function AISalesAgentPage() {
             </h1>
 
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Let TIVRA AI qualify leads, understand requirements and assist
-              your sales team.
+              Qualify leads, understand customer requirements and assist your sales team.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
+
+            {/* MOBILE CONVERSATIONS */}
             <button
               type="button"
-              onClick={() => setShowCapabilities(true)}
+              onClick={() =>
+                setShowMobileConversations(
+                  true
+                )
+              }
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold shadow-sm transition hover:border-orange-300 hover:text-orange-500 dark:border-white/10 dark:bg-[#111a2e] xl:hidden"
+            >
+              <Menu size={17} />
+              Conversations
+            </button>
+
+            {/* AI CAPABILITIES */}
+            <button
+              type="button"
+              onClick={() =>
+                setShowCapabilities(true)
+              }
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold shadow-sm transition hover:border-orange-300 hover:text-orange-500 dark:border-white/10 dark:bg-[#111a2e]"
             >
               <Sparkles size={17} />
-              AI Capabilities
+
+              <span className="hidden sm:inline">
+                AI Capabilities
+              </span>
+
+              <span className="sm:hidden">
+                AI
+              </span>
             </button>
 
+            {/* SETTINGS */}
             <button
               type="button"
-              onClick={() => setHumanTakeover((prev) => !prev)}
+              onClick={() =>
+                setShowSettings(true)
+              }
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-orange-300 hover:text-orange-500 dark:border-white/10 dark:bg-[#111a2e]"
+              title="AI Settings"
+            >
+              <Settings2 size={17} />
+            </button>
+
+            {/* HUMAN TAKEOVER */}
+            <button
+              type="button"
+              onClick={() =>
+                setHumanTakeover(
+                  (prev) => !prev
+                )
+              }
               className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
                 humanTakeover
                   ? "bg-green-600 text-white hover:bg-green-700"
@@ -389,18 +698,33 @@ export default function AISalesAgentPage() {
             >
               <UserRound size={17} />
 
-              {humanTakeover ? "Human Mode Active" : "Take Over"}
+              {humanTakeover
+                ? "Return to AI"
+                : "Take Over"}
             </button>
           </div>
         </div>
 
-        {/* STATUS CARDS */}
+        {/* =====================================================
+            STATUS CARDS
+        ===================================================== */}
+
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <StatusCard
-            icon={<MessageSquare size={18} />}
+            icon={
+              <MessageSquare size={18} />
+            }
             title="Conversation"
-            value="Active"
-            description="Customer is responding"
+            value={
+              isGenerating
+                ? "AI Replying"
+                : "Active"
+            }
+            description={
+              isGenerating
+                ? "AI is generating a response"
+                : "Customer conversation is active"
+            }
             type="green"
           />
 
@@ -408,24 +732,17 @@ export default function AISalesAgentPage() {
             icon={<Flame size={18} />}
             title="Lead Temperature"
             value={
-              selectedConversation.score >= 80
-                ? "Hot"
-                : selectedConversation.score >= 60
-                ? "Warm"
-                : "Cold"
+              selectedTemperature
             }
-            description="Based on AI lead scoring"
+            description="Based on lead score"
             type="orange"
           />
 
           <StatusCard
             icon={<Target size={18} />}
             title="AI Confidence"
-            value={`${Math.min(
-              98,
-              selectedConversation.score + 2
-            )}%`}
-            description="AI confidence level"
+            value={`${aiConfidence}%`}
+            description="Current AI confidence level"
             type="blue"
           />
 
@@ -433,28 +750,41 @@ export default function AISalesAgentPage() {
             icon={<Clock3 size={18} />}
             title="Response Time"
             value="< 1 min"
-            description="AI response speed"
+            description="Typical AI response speed"
             type="purple"
           />
         </section>
 
-        {/* MAIN AREA */}
+        {/* =====================================================
+            MAIN AREA
+        ===================================================== */}
+
         <section className="grid min-h-[680px] grid-cols-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-[#111a2e] xl:grid-cols-[300px_minmax(0,1fr)_330px]">
-          {/* LEFT CONVERSATIONS */}
+
+          {/* ===================================================
+              LEFT CONVERSATIONS
+          =================================================== */}
+
           <aside className="hidden border-r border-slate-200 dark:border-white/10 xl:block">
             <div className="border-b border-slate-200 p-4 dark:border-white/10">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="font-semibold">AI Conversations</h2>
+                  <h2 className="font-semibold">
+                    AI Conversations
+                  </h2>
 
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    {conversations.length} active conversations
+                    {conversations.length} conversations
                   </p>
                 </div>
 
                 <button
                   type="button"
+                  onClick={() =>
+                    setShowSettings(true)
+                  }
                   className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-orange-500 dark:hover:bg-white/5"
+                  title="Conversation settings"
                 >
                   <Settings2 size={17} />
                 </button>
@@ -462,26 +792,50 @@ export default function AISalesAgentPage() {
             </div>
 
             <div className="space-y-1 p-2">
-              {conversations.map((conversation) => (
-                <ConversationItem
-                  key={conversation.id}
-                  name={conversation.name}
-                  company={conversation.company}
-                  message={conversation.lastMessage}
-                  time={conversation.time}
-                  score={conversation.score.toString()}
-                  active={conversation.id === selectedConversationId}
-                  onClick={() => selectConversation(conversation.id)}
-                />
-              ))}
+              {conversations.map(
+                (conversation) => (
+                  <ConversationItem
+                    key={conversation.id}
+                    name={
+                      conversation.name
+                    }
+                    company={
+                      conversation.company
+                    }
+                    message={
+                      conversation.lastMessage
+                    }
+                    time={
+                      conversation.time
+                    }
+                    score={
+                      conversation.score
+                    }
+                    active={
+                      conversation.id ===
+                      selectedConversationId
+                    }
+                    onClick={() =>
+                      selectConversation(
+                        conversation.id
+                      )
+                    }
+                  />
+                )
+              )}
             </div>
           </aside>
 
-          {/* CHAT */}
+          {/* ===================================================
+              CHAT
+          =================================================== */}
+
           <div className="flex min-h-[680px] min-w-0 flex-col">
+
             {/* CHAT HEADER */}
             <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4 dark:border-white/10 sm:px-5">
               <div className="flex min-w-0 items-center gap-3">
+
                 <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400">
                   <CircleUserRound size={22} />
 
@@ -490,43 +844,89 @@ export default function AISalesAgentPage() {
 
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
+
                     <h2 className="truncate font-semibold">
-                      {selectedConversation.name}
+                      {
+                        selectedConversation.name
+                      }
                     </h2>
 
                     <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-bold text-orange-600 dark:bg-orange-500/10 dark:text-orange-400">
-                      {selectedConversation.score >= 80
-                        ? "HOT"
-                        : selectedConversation.score >= 60
-                        ? "WARM"
-                        : "COLD"}
+                      {selectedTemperature.toUpperCase()}
                     </span>
+
                   </div>
 
                   <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                    {selectedConversation.company} ·{" "}
-                    {selectedConversation.phone}
+                    {
+                      selectedConversation.company
+                    }{" "}
+                    ·{" "}
+                    {
+                      selectedConversation.phone
+                    }
                   </p>
                 </div>
               </div>
 
-              <div className="hidden items-center gap-2 sm:flex">
+              {/* ONLY ONE CALL + ONE LEAD DETAILS */}
+              <div className="flex items-center gap-1">
+
                 <a
                   href={`tel:${selectedConversation.phone}`}
                   className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-orange-500 dark:hover:bg-white/5"
-                  title="Call lead"
+                  title={`Call ${selectedConversation.name}`}
                 >
                   <Phone size={17} />
                 </a>
 
                 <button
                   type="button"
-                  onClick={() => setShowLeadDetails(true)}
+                  onClick={() =>
+                    setShowLeadDetails(
+                      true
+                    )
+                  }
                   className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-orange-500 dark:hover:bg-white/5"
                   title="Lead details"
                 >
-                  <FileText size={17} />
+                  <Info size={17} />
                 </button>
+
+                {/* THREE DOTS - ONLY CLEAR */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowChatMenu(
+                        (prev) => !prev
+                      )
+                    }
+                    className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-orange-500 dark:hover:bg-white/5"
+                    title="More options"
+                  >
+                    <MoreHorizontal
+                      size={18}
+                    />
+                  </button>
+
+                  {showChatMenu && (
+                    <div className="absolute right-0 top-10 z-40 w-48 rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl dark:border-white/10 dark:bg-[#111a2e]">
+
+                      <button
+                        type="button"
+                        onClick={
+                          clearSelectedConversation
+                        }
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
+                      >
+                        <Trash2 size={14} />
+                        Clear Conversation
+                      </button>
+
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -539,6 +939,7 @@ export default function AISalesAgentPage() {
               }`}
             >
               <div className="flex items-center gap-3">
+
                 <div
                   className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
                     humanTakeover
@@ -554,6 +955,7 @@ export default function AISalesAgentPage() {
                 </div>
 
                 <div className="min-w-0">
+
                   <p className="text-xs font-semibold">
                     {humanTakeover
                       ? "Human takeover is active"
@@ -562,51 +964,116 @@ export default function AISalesAgentPage() {
 
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
                     {humanTakeover
-                      ? "AI replies are paused until you switch back to AI."
-                      : "AI will automatically respond to customer messages."}
+                      ? "You are replying as the salesperson."
+                      : autoReplyEnabled
+                      ? "Customer test messages receive an AI response automatically."
+                      : "Automatic AI replies are currently disabled."}
                   </p>
+
                 </div>
+              </div>
+            </div>
+
+            {/* MOBILE SUMMARY */}
+            <div className="border-b border-slate-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-[#111a2e] xl:hidden">
+              <div className="grid grid-cols-3 gap-2">
+
+                <MiniInfo
+                  label="Score"
+                  value={`${selectedConversation.score}/100`}
+                />
+
+                <MiniInfo
+                  label="Stage"
+                  value={
+                    selectedConversation.stage
+                  }
+                />
+
+                <MiniInfo
+                  label="Intent"
+                  value={
+                    selectedConversation.intent
+                  }
+                />
+
               </div>
             </div>
 
             {/* MESSAGES */}
             <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50/70 p-4 dark:bg-[#0b1222]/50 sm:p-5">
+
               <div className="flex justify-center">
                 <span className="rounded-full bg-slate-200 px-3 py-1 text-[10px] text-slate-500 dark:bg-white/5 dark:text-slate-400">
-                  Today
+                  Conversation
                 </span>
               </div>
 
-              {messages.map((item) => (
-                <MessageBubble key={item.id} message={item} />
-              ))}
+              {messages.length === 0 ? (
+                <div className="flex min-h-[300px] items-center justify-center">
+                  <div className="text-center">
 
-              {!humanTakeover && (
-                <div className="flex items-center gap-2 text-xs text-slate-400">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-orange-100 text-orange-500 dark:bg-orange-500/10">
-                    <Bot size={14} />
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-orange-100 text-orange-500 dark:bg-orange-500/10">
+                      <MessageSquare size={20} />
+                    </div>
+
+                    <p className="mt-3 text-sm font-semibold">
+                      No messages
+                    </p>
+
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      Start a new conversation below.
+                    </p>
+
                   </div>
-
-                  TIVRA AI is ready
                 </div>
+              ) : (
+                messages.map(
+                  (item) => (
+                    <MessageBubble
+                      key={item.id}
+                      message={item}
+                    />
+                  )
+                )
+              )}
+
+              {isGenerating && (
+                <TypingIndicator />
               )}
             </div>
 
             {/* INPUT */}
             <div className="border-t border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-[#111a2e] sm:p-4">
+
               {humanTakeover && (
                 <div className="mb-3 rounded-lg bg-green-50 px-3 py-2 text-xs text-green-700 dark:bg-green-500/5 dark:text-green-400">
-                  You are replying as a salesperson. AI responses are
-                  currently paused.
+                  Human mode active. Your message will appear as the Sales Team.
                 </div>
               )}
 
+              {!humanTakeover &&
+                !autoReplyEnabled && (
+                  <div className="mb-3 rounded-lg bg-yellow-50 px-3 py-2 text-xs text-yellow-700 dark:bg-yellow-500/5 dark:text-yellow-400">
+                    Auto AI reply is OFF. Enable it from AI Settings.
+                  </div>
+                )}
+
               <div className="flex items-end gap-2">
+
                 <textarea
                   value={message}
-                  onChange={(e) => setMessage(e.target.value)}
+                  onChange={(e) =>
+                    setMessage(
+                      e.target.value
+                    )
+                  }
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
+                    if (
+                      e.key ===
+                        "Enter" &&
+                      !e.shiftKey
+                    ) {
                       e.preventDefault();
                       handleSend();
                     }
@@ -615,7 +1082,7 @@ export default function AISalesAgentPage() {
                   placeholder={
                     humanTakeover
                       ? `Reply to ${selectedConversation.name}...`
-                      : `Type a message for ${selectedConversation.name}...`
+                      : `Test a customer message for ${selectedConversation.name}...`
                   }
                   className="min-h-[48px] flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10 dark:border-white/10 dark:bg-[#0b1222]"
                 />
@@ -623,32 +1090,50 @@ export default function AISalesAgentPage() {
                 <button
                   type="button"
                   onClick={handleSend}
-                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-white transition hover:bg-orange-600"
+                  disabled={
+                    !message.trim() ||
+                    isGenerating
+                  }
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-40"
                   title="Send message"
                 >
                   <Send size={18} />
                 </button>
+
               </div>
 
               <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400">
+
                 <span>
-                  Press Enter to send · Shift + Enter for new line
+                  Enter to send · Shift + Enter for new line
                 </span>
 
                 <span className="hidden sm:block">
                   {customerMessages.length} customer messages
                 </span>
+
               </div>
             </div>
           </div>
 
-          {/* RIGHT INTELLIGENCE */}
+          {/* ===================================================
+              RIGHT LEAD INTELLIGENCE
+          =================================================== */}
+
           <aside className="hidden border-l border-slate-200 dark:border-white/10 xl:block">
+
             <div className="border-b border-slate-200 p-4 dark:border-white/10">
               <div className="flex items-center gap-2">
-                <Sparkles size={17} className="text-orange-500" />
 
-                <h2 className="font-semibold">Lead Intelligence</h2>
+                <Sparkles
+                  size={17}
+                  className="text-orange-500"
+                />
+
+                <h2 className="font-semibold">
+                  Lead Intelligence
+                </h2>
+
               </div>
 
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -657,9 +1142,12 @@ export default function AISalesAgentPage() {
             </div>
 
             <div className="space-y-5 p-4">
+
               {/* SCORE */}
               <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 dark:border-orange-500/20 dark:bg-orange-500/5">
+
                 <div className="flex items-center justify-between">
+
                   <div>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
                       AI Lead Score
@@ -667,6 +1155,7 @@ export default function AISalesAgentPage() {
 
                     <p className="mt-1 text-3xl font-bold text-orange-500">
                       {selectedConversation.score}
+
                       <span className="text-sm font-medium text-slate-400">
                         /100
                       </span>
@@ -676,6 +1165,454 @@ export default function AISalesAgentPage() {
                   <div className="flex h-11 w-11 items-center justify-center rounded-full bg-orange-500 text-white">
                     <Flame size={20} />
                   </div>
+
+                </div>
+
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-white dark:bg-white/10">
+                  <div
+                    className="h-full rounded-full bg-orange-500 transition-all duration-500"
+                    style={{
+                      width: `${selectedConversation.score}%`,
+                    }}
+                  />
+                </div>
+
+                <p className="mt-2 text-xs font-semibold text-orange-600 dark:text-orange-400">
+                  {selectedTemperature.toUpperCase()} LEAD
+                </p>
+
+              </div>
+
+              {/* INTENT */}
+              <IntelligenceItem
+                title="Detected Intent"
+                value={
+                  selectedConversation.intent
+                }
+                icon={
+                  <Target size={16} />
+                }
+              />
+
+              {/* BUYING SIGNALS */}
+              <div>
+
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Buying Signals
+                </p>
+
+                <div className="space-y-2">
+
+                  {selectedConversation.score >=
+                    80 && (
+                    <>
+                      <Signal text="Strong buying interest" />
+                      <Signal text="High conversation engagement" />
+                      <Signal text="Potential demo requirement" />
+                    </>
+                  )}
+
+                  {selectedConversation.score >=
+                    60 &&
+                    selectedConversation.score <
+                      80 && (
+                      <>
+                        <Signal text="Customer is interested" />
+                        <Signal text="Product information requested" />
+                      </>
+                    )}
+
+                  {selectedConversation.score <
+                    60 && (
+                    <Signal text="Early-stage enquiry" />
+                  )}
+
+                </div>
+              </div>
+
+              {/* REQUIREMENTS */}
+              <div>
+
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Extracted Requirements
+                </p>
+
+                <div className="space-y-2">
+
+                  <Requirement
+                    label="Product"
+                    value="TIVRA AI CRM"
+                  />
+
+                  <Requirement
+                    label="Requirement"
+                    value={
+                      selectedConversation.requirement
+                    }
+                  />
+
+                  <Requirement
+                    label="Timeline"
+                    value={
+                      selectedConversation.timeline
+                    }
+                  />
+
+                  <Requirement
+                    label="Stage"
+                    value={
+                      selectedConversation.stage
+                    }
+                  />
+
+                </div>
+              </div>
+
+              {/* CONFIDENCE */}
+              <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+
+                <div className="flex items-center justify-between">
+
+                  <div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      AI Confidence
+                    </p>
+
+                    <p className="mt-1 text-lg font-bold">
+                      {aiConfidence}%
+                    </p>
+                  </div>
+
+                  <ShieldCheck
+                    className="text-green-500"
+                    size={22}
+                  />
+
+                </div>
+
+                <div className="mt-3 h-1.5 rounded-full bg-slate-100 dark:bg-white/10">
+                  <div
+                    className="h-full rounded-full bg-green-500 transition-all duration-500"
+                    style={{
+                      width: `${aiConfidence}%`,
+                    }}
+                  />
+                </div>
+
+              </div>
+
+              {/* NEXT ACTION */}
+              <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 dark:border-orange-500/20 dark:bg-orange-500/5">
+
+                <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400">
+
+                  <Zap size={16} />
+
+                  <p className="text-xs font-bold uppercase tracking-wide">
+                    Suggested Next Action
+                  </p>
+
+                </div>
+
+                <p className="mt-2 text-sm leading-5 text-slate-700 dark:text-slate-300">
+                  {selectedConversation.score >=
+                  80
+                    ? "Schedule a product demo and prepare a quotation."
+                    : selectedConversation.score >=
+                      60
+                    ? "Follow up with product details and pricing."
+                    : "Continue nurturing the lead and understand requirements."}
+                </p>
+
+              </div>
+
+            </div>
+          </aside>
+        </section>
+      </div>
+
+      {/* =====================================================
+          MOBILE CONVERSATIONS
+      ===================================================== */}
+
+      {showMobileConversations && (
+        <div
+          className="fixed inset-0 z-[120] bg-slate-950/60 backdrop-blur-sm xl:hidden"
+          onClick={() =>
+            setShowMobileConversations(
+              false
+            )
+          }
+        >
+          <div
+            className="absolute left-0 top-0 h-full w-full max-w-sm overflow-y-auto bg-white shadow-2xl dark:bg-[#0b1222]"
+            onClick={(e) =>
+              e.stopPropagation()
+            }
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 p-4 dark:border-white/10">
+
+              <div>
+                <h2 className="font-bold">
+                  AI Conversations
+                </h2>
+
+                <p className="mt-1 text-xs text-slate-400">
+                  Select a conversation
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setShowMobileConversations(
+                    false
+                  )
+                }
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10"
+              >
+                <X size={18} />
+              </button>
+
+            </div>
+
+            <div className="space-y-1 p-2">
+
+              {conversations.map(
+                (conversation) => (
+                  <ConversationItem
+                    key={
+                      conversation.id
+                    }
+                    name={
+                      conversation.name
+                    }
+                    company={
+                      conversation.company
+                    }
+                    message={
+                      conversation.lastMessage
+                    }
+                    time={
+                      conversation.time
+                    }
+                    score={
+                      conversation.score
+                    }
+                    active={
+                      conversation.id ===
+                      selectedConversationId
+                    }
+                    onClick={() =>
+                      selectConversation(
+                        conversation.id
+                      )
+                    }
+                  />
+                )
+              )}
+
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================
+          AI CAPABILITIES MODAL
+      ===================================================== */}
+
+      {showCapabilities && (
+        <div
+          className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+          onClick={() =>
+            setShowCapabilities(
+              false
+            )
+          }
+        >
+          <div
+            className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-[#111a2e]"
+            onClick={(e) =>
+              e.stopPropagation()
+            }
+          >
+
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-white/10">
+
+              <div className="flex items-center gap-3">
+
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500 text-white">
+                  <Sparkles size={19} />
+                </div>
+
+                <div>
+                  <h2 className="font-bold">
+                    TIVRA AI Capabilities
+                  </h2>
+
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    AI Sales Agent capabilities
+                  </p>
+                </div>
+
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setShowCapabilities(
+                    false
+                  )
+                }
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10"
+              >
+                <X size={18} />
+              </button>
+
+            </div>
+
+            <div className="grid gap-3 p-5 sm:grid-cols-2">
+
+              <Capability
+                icon={
+                  <MessageSquare
+                    size={18}
+                  />
+                }
+                title="Understand Intent"
+                description="Detect product, pricing, demo and support-related customer intent."
+              />
+
+              <Capability
+                icon={
+                  <Target size={18} />
+                }
+                title="Qualify Leads"
+                description="Understand customer needs, buying timeline and sales requirements."
+              />
+
+              <Capability
+                icon={
+                  <FileText size={18} />
+                }
+                title="Extract Requirements"
+                description="Capture product, business requirements, timeline and lead stage."
+              />
+
+              <Capability
+                icon={
+                  <Flame size={18} />
+                }
+                title="Detect Buying Signals"
+                description="Identify pricing requests, demo requests and strong purchase signals."
+              />
+
+              <Capability
+                icon={
+                  <ShieldCheck
+                    size={18}
+                  />
+                }
+                title="Approved Knowledge"
+                description="Respond using approved company information and conversation context."
+              />
+
+              <Capability
+                icon={
+                  <UserRound
+                    size={18}
+                  />
+                }
+                title="Human Handover"
+                description="Pause AI replies and allow a salesperson to take control."
+              />
+
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================
+          LEAD DETAILS MODAL
+      ===================================================== */}
+
+      {showLeadDetails && (
+        <div
+          className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+          onClick={() =>
+            setShowLeadDetails(
+              false
+            )
+          }
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-[#111a2e]"
+            onClick={(e) =>
+              e.stopPropagation()
+            }
+          >
+
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-white/10">
+
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-orange-500">
+                  Lead Details
+                </p>
+
+                <h2 className="mt-1 font-bold">
+                  {
+                    selectedConversation.name
+                  }
+                </h2>
+
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {
+                    selectedConversation.company
+                  }
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setShowLeadDetails(
+                    false
+                  )
+                }
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10"
+              >
+                <X size={18} />
+              </button>
+
+            </div>
+
+            <div className="space-y-3 p-5">
+
+              <div className="mb-4 rounded-xl border border-orange-200 bg-orange-50 p-4 dark:border-orange-500/20 dark:bg-orange-500/5">
+
+                <div className="flex items-center justify-between">
+
+                  <div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      AI Lead Score
+                    </p>
+
+                    <p className="mt-1 text-3xl font-bold text-orange-500">
+                      {
+                        selectedConversation.score
+                      }
+
+                      <span className="text-sm text-slate-400">
+                        /100
+                      </span>
+                    </p>
+                  </div>
+
+                  <Flame
+                    size={25}
+                    className="text-orange-500"
+                  />
+
                 </div>
 
                 <div className="mt-3 h-2 overflow-hidden rounded-full bg-white dark:bg-white/10">
@@ -687,260 +1624,27 @@ export default function AISalesAgentPage() {
                   />
                 </div>
 
-                <p className="mt-2 text-xs font-semibold text-orange-600 dark:text-orange-400">
-                  {selectedConversation.score >= 80
-                    ? "HOT LEAD"
-                    : selectedConversation.score >= 60
-                    ? "WARM LEAD"
-                    : "COLD LEAD"}
-                </p>
               </div>
 
-              {/* INTENT */}
-              <IntelligenceItem
-                title="Detected Intent"
-                value={selectedConversation.intent}
-                icon={<Target size={16} />}
-              />
-
-              {/* BUYING SIGNALS */}
-              <div>
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  Buying Signals
-                </p>
-
-                <div className="space-y-2">
-                  {selectedConversation.score >= 80 && (
-                    <>
-                      <Signal text="Strong buying interest" />
-                      <Signal text="High conversation engagement" />
-                      <Signal text="Potential demo requirement" />
-                    </>
-                  )}
-
-                  {selectedConversation.score >= 60 &&
-                    selectedConversation.score < 80 && (
-                      <>
-                        <Signal text="Customer is interested" />
-                        <Signal text="Product information requested" />
-                      </>
-                    )}
-
-                  {selectedConversation.score < 60 && (
-                    <Signal text="Early-stage enquiry" />
-                  )}
-                </div>
-              </div>
-
-              {/* REQUIREMENTS */}
-              <div>
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  Extracted Requirements
-                </p>
-
-                <div className="space-y-2">
-                  <Requirement
-                    label="Product"
-                    value="TIVRA AI CRM"
-                  />
-
-                  <Requirement
-                    label="Requirement"
-                    value={selectedConversation.requirement}
-                  />
-
-                  <Requirement
-                    label="Timeline"
-                    value={selectedConversation.timeline}
-                  />
-
-                  <Requirement
-                    label="Stage"
-                    value={selectedConversation.stage}
-                  />
-                </div>
-              </div>
-
-              {/* CONFIDENCE */}
-              <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      AI Confidence
-                    </p>
-
-                    <p className="mt-1 text-lg font-bold">
-                      {Math.min(
-                        98,
-                        selectedConversation.score + 2
-                      )}
-                      %
-                    </p>
-                  </div>
-
-                  <ShieldCheck
-                    className="text-green-500"
-                    size={22}
-                  />
-                </div>
-
-                <div className="mt-3 h-1.5 rounded-full bg-slate-100 dark:bg-white/10">
-                  <div
-                    className="h-full rounded-full bg-green-500"
-                    style={{
-                      width: `${Math.min(
-                        98,
-                        selectedConversation.score + 2
-                      )}%`,
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* NEXT ACTION */}
-              <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 dark:border-orange-500/20 dark:bg-orange-500/5">
-                <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400">
-                  <Zap size={16} />
-
-                  <p className="text-xs font-bold uppercase tracking-wide">
-                    Suggested Next Action
-                  </p>
-                </div>
-
-                <p className="mt-2 text-sm leading-5 text-slate-700 dark:text-slate-300">
-                  {selectedConversation.score >= 80
-                    ? "Schedule a product demo and prepare a quotation."
-                    : selectedConversation.score >= 60
-                    ? "Follow up with product details and pricing."
-                    : "Continue nurturing the lead and understand requirements."}
-                </p>
-              </div>
-            </div>
-          </aside>
-        </section>
-      </div>
-
-      {/* AI CAPABILITIES MODAL */}
-      {showCapabilities && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
-          onClick={() => setShowCapabilities(false)}
-        >
-          <div
-            className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-[#111a2e]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-white/10">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500 text-white">
-                  <Sparkles size={19} />
-                </div>
-
-                <div>
-                  <h2 className="font-bold">
-                    TIVRA AI Capabilities
-                  </h2>
-
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    What the AI Sales Agent can do
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowCapabilities(false)}
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="grid gap-3 p-5 sm:grid-cols-2">
-              <Capability
-                icon={<MessageSquare size={18} />}
-                title="Understand Intent"
-                description="Detect product enquiries, pricing requests, demo requests and other customer intents."
-              />
-
-              <Capability
-                icon={<Target size={18} />}
-                title="Qualify Leads"
-                description="Ask relevant questions to understand customer needs, budget and timeline."
-              />
-
-              <Capability
-                icon={<FileText size={18} />}
-                title="Extract Requirements"
-                description="Capture product, quantity, business type, requirements and other useful details."
-              />
-
-              <Capability
-                icon={<Flame size={18} />}
-                title="Detect Buying Signals"
-                description="Identify signals such as pricing questions, demo requests and purchase urgency."
-              />
-
-              <Capability
-                icon={<ShieldCheck size={18} />}
-                title="Use Approved Knowledge"
-                description="Answer customer questions using approved company information and knowledge."
-              />
-
-              <Capability
-                icon={<UserRound size={18} />}
-                title="Human Handover"
-                description="Pause AI responses and transfer the conversation to a salesperson when needed."
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* LEAD DETAILS MODAL */}
-      {showLeadDetails && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
-          onClick={() => setShowLeadDetails(false)}
-        >
-          <div
-            className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-[#111a2e]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-white/10">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-orange-500">
-                  Lead Details
-                </p>
-
-                <h2 className="mt-1 font-bold">
-                  {selectedConversation.name}
-                </h2>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowLeadDetails(false)}
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="space-y-3 p-5">
               <DetailRow
                 label="Company"
-                value={selectedConversation.company}
+                value={
+                  selectedConversation.company
+                }
               />
 
               <DetailRow
                 label="Email"
-                value={selectedConversation.email}
+                value={
+                  selectedConversation.email
+                }
               />
 
               <DetailRow
                 label="Phone"
-                value={selectedConversation.phone}
+                value={
+                  selectedConversation.phone
+                }
               />
 
               <DetailRow
@@ -949,24 +1653,186 @@ export default function AISalesAgentPage() {
               />
 
               <DetailRow
+                label="Lead Temperature"
+                value={selectedTemperature}
+              />
+
+              <DetailRow
                 label="Stage"
-                value={selectedConversation.stage}
+                value={
+                  selectedConversation.stage
+                }
               />
 
               <DetailRow
                 label="Timeline"
-                value={selectedConversation.timeline}
+                value={
+                  selectedConversation.timeline
+                }
               />
 
               <DetailRow
                 label="Requirement"
-                value={selectedConversation.requirement}
+                value={
+                  selectedConversation.requirement
+                }
               />
 
               <DetailRow
                 label="Intent"
-                value={selectedConversation.intent}
+                value={
+                  selectedConversation.intent
+                }
               />
+
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================
+          SETTINGS MODAL
+      ===================================================== */}
+
+      {showSettings && (
+        <div
+          className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+          onClick={() =>
+            setShowSettings(false)
+          }
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-[#111a2e]"
+            onClick={(e) =>
+              e.stopPropagation()
+            }
+          >
+
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-white/10">
+
+              <div className="flex items-center gap-3">
+
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/10 text-orange-500">
+                  <Settings2 size={19} />
+                </div>
+
+                <div>
+                  <h2 className="font-bold">
+                    AI Sales Agent Settings
+                  </h2>
+
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Frontend demo controls
+                  </p>
+                </div>
+
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setShowSettings(
+                    false
+                  )
+                }
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10"
+              >
+                <X size={18} />
+              </button>
+
+            </div>
+
+            <div className="space-y-4 p-5">
+
+              {/* AUTOMATIC AI REPLY */}
+              <div className="flex items-center justify-between rounded-xl border border-slate-200 p-4 dark:border-white/10">
+
+                <div className="pr-4">
+
+                  <p className="text-sm font-semibold">
+                    Automatic AI Replies
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Automatically generate a test AI response after a customer message.
+                  </p>
+
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setAutoReplyEnabled(
+                      (prev) => !prev
+                    )
+                  }
+                  className={`relative h-6 w-11 shrink-0 rounded-full transition ${
+                    autoReplyEnabled
+                      ? "bg-orange-500"
+                      : "bg-slate-300 dark:bg-white/20"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow transition ${
+                      autoReplyEnabled
+                        ? "left-6"
+                        : "left-1"
+                    }`}
+                  />
+                </button>
+
+              </div>
+
+              {/* CURRENT MODE */}
+              <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Current Mode
+                </p>
+
+                <div className="mt-2 flex items-center gap-2">
+
+                  {humanTakeover ? (
+                    <>
+                      <UserRound
+                        size={16}
+                        className="text-green-500"
+                      />
+
+                      <span className="text-sm font-semibold">
+                        Human Takeover
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Bot
+                        size={16}
+                        className="text-orange-500"
+                      />
+
+                      <span className="text-sm font-semibold">
+                        AI Sales Agent
+                      </span>
+                    </>
+                  )}
+
+                </div>
+              </div>
+
+              {/* RESET */}
+              <button
+                type="button"
+                onClick={
+                  resetDemoData
+                }
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-50 dark:border-red-500/20 dark:text-red-400 dark:hover:bg-red-500/10"
+              >
+                <RotateCcw
+                  size={16}
+                />
+                Reset Demo Conversations
+              </button>
+
             </div>
           </div>
         </div>
@@ -984,39 +1850,113 @@ function MessageBubble({
 }: {
   message: Message;
 }) {
-  const isCustomer = message.sender === "customer";
+  const isCustomer =
+    message.sender ===
+    "customer";
+
+  const isHuman =
+    message.sender === "human";
+
+  const isAi =
+    message.sender === "ai";
 
   return (
     <div
       className={`flex ${
-        isCustomer ? "justify-end" : "justify-start"
+        isCustomer
+          ? "justify-start"
+          : "justify-end"
       }`}
     >
       <div
-        className={`flex max-w-[85%] flex-col ${
-          isCustomer ? "items-end" : "items-start"
-        } sm:max-w-[72%]`}
+        className={`flex max-w-[88%] flex-col ${
+          isCustomer
+            ? "items-start"
+            : "items-end"
+        } sm:max-w-[75%]`}
       >
+
         <div
           className={`rounded-2xl px-4 py-3 text-sm leading-6 ${
             isCustomer
-              ? "rounded-br-md bg-orange-500 text-white"
-              : "rounded-bl-md border border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-[#111a2e] dark:text-slate-300"
+              ? "rounded-tl-md border border-slate-200 bg-white text-slate-700 dark:border-white/10 dark:bg-[#111a2e] dark:text-slate-300"
+              : isAi
+              ? "rounded-tr-md border border-orange-200 bg-orange-50 text-slate-700 dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-50"
+              : "rounded-tr-md bg-orange-500 text-white"
           }`}
         >
+
           {!isCustomer && (
-            <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-orange-500">
-              <Bot size={14} />
-              TIVRA AI
+            <div
+              className={`mb-2 flex items-center gap-2 text-xs font-semibold ${
+                isAi
+                  ? "text-orange-500"
+                  : "text-white/90"
+              }`}
+            >
+              {isAi ? (
+                <>
+                  <Bot size={14} />
+                  TIVRA AI
+                </>
+              ) : (
+                <>
+                  <UserRound size={14} />
+                  Sales Team
+                </>
+              )}
             </div>
           )}
 
-          {message.text}
+          {isCustomer && (
+            <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              Customer
+            </div>
+          )}
+
+          <p className="whitespace-pre-wrap">
+            {message.text}
+          </p>
+
         </div>
 
         <span className="mt-1 px-1 text-[10px] text-slate-400">
           {message.time}
         </span>
+
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   TYPING INDICATOR
+========================================================= */
+
+function TypingIndicator() {
+  return (
+    <div className="flex justify-end">
+      <div className="rounded-2xl rounded-tr-md border border-orange-200 bg-orange-50 px-4 py-3 dark:border-orange-500/20 dark:bg-orange-500/10">
+
+        <div className="flex items-center gap-2 text-xs text-orange-500">
+
+          <Bot size={14} />
+
+          <span>
+            TIVRA AI is typing
+          </span>
+
+          <span className="flex gap-1">
+
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-orange-500 [animation-delay:-0.3s]" />
+
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-orange-500 [animation-delay:-0.15s]" />
+
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-orange-500" />
+
+          </span>
+
+        </div>
       </div>
     </div>
   );
@@ -1039,10 +1979,17 @@ function ConversationItem({
   company: string;
   message: string;
   time: string;
-  score: string;
+  score: number;
   active?: boolean;
   onClick: () => void;
 }) {
+  const temperature =
+    score >= 80
+      ? "hot"
+      : score >= 60
+      ? "warm"
+      : "cold";
+
   return (
     <button
       type="button"
@@ -1053,7 +2000,9 @@ function ConversationItem({
           : "hover:bg-slate-50 dark:hover:bg-white/[0.03]"
       }`}
     >
+
       <div className="flex gap-3">
+
         <div
           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
             active
@@ -1069,7 +2018,9 @@ function ConversationItem({
         </div>
 
         <div className="min-w-0 flex-1">
+
           <div className="flex items-center justify-between gap-2">
+
             <p className="truncate text-sm font-semibold">
               {name}
             </p>
@@ -1077,6 +2028,7 @@ function ConversationItem({
             <span className="shrink-0 text-[10px] text-slate-400">
               {time}
             </span>
+
           </div>
 
           <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">
@@ -1084,21 +2036,23 @@ function ConversationItem({
           </p>
 
           <div className="mt-1 flex items-center justify-between gap-2">
+
             <p className="truncate text-xs text-slate-500 dark:text-slate-400">
               {message}
             </p>
 
             <span
               className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${
-                Number(score) >= 80
+                temperature === "hot"
                   ? "bg-orange-100 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400"
-                  : Number(score) >= 60
+                  : temperature === "warm"
                   ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-500/10 dark:text-yellow-400"
                   : "bg-slate-100 text-slate-600 dark:bg-white/5 dark:text-slate-400"
               }`}
             >
               {score}
             </span>
+
           </div>
         </div>
       </div>
@@ -1117,11 +2071,15 @@ function StatusCard({
   description,
   type,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   title: string;
   value: string;
   description: string;
-  type: "green" | "orange" | "blue" | "purple";
+  type:
+    | "green"
+    | "orange"
+    | "blue"
+    | "purple";
 }) {
   const iconClass = {
     green:
@@ -1139,25 +2097,32 @@ function StatusCard({
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#111a2e]">
+
       <div className="flex items-center gap-3">
+
         <div
           className={`flex h-10 w-10 items-center justify-center rounded-xl ${iconClass}`}
         >
           {icon}
         </div>
 
-        <div>
+        <div className="min-w-0">
+
           <p className="text-xs text-slate-500 dark:text-slate-400">
             {title}
           </p>
 
-          <p className="mt-0.5 font-bold">{value}</p>
+          <p className="mt-0.5 truncate font-bold">
+            {value}
+          </p>
+
         </div>
       </div>
 
       <p className="mt-3 text-[11px] text-slate-400">
         {description}
       </p>
+
     </div>
   );
 }
@@ -1173,17 +2138,25 @@ function IntelligenceItem({
 }: {
   title: string;
   value: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
 }) {
   return (
     <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+
       <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
-        <span className="text-orange-500">{icon}</span>
+
+        <span className="text-orange-500">
+          {icon}
+        </span>
 
         {title}
+
       </div>
 
-      <p className="mt-2 text-sm font-semibold">{value}</p>
+      <p className="mt-2 text-sm font-semibold">
+        {value}
+      </p>
+
     </div>
   );
 }
@@ -1192,9 +2165,14 @@ function IntelligenceItem({
    SIGNAL
 ========================================================= */
 
-function Signal({ text }: { text: string }) {
+function Signal({
+  text,
+}: {
+  text: string;
+}) {
   return (
     <div className="flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 dark:bg-green-500/5">
+
       <CheckCircle2
         size={15}
         className="shrink-0 text-green-500"
@@ -1203,6 +2181,7 @@ function Signal({ text }: { text: string }) {
       <span className="text-xs text-slate-700 dark:text-slate-300">
         {text}
       </span>
+
     </div>
   );
 }
@@ -1220,13 +2199,15 @@ function Requirement({
 }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2.5 dark:border-white/10">
+
       <span className="text-xs text-slate-500 dark:text-slate-400">
         {label}
       </span>
 
-      <span className="text-right text-xs font-semibold">
+      <span className="max-w-[65%] text-right text-xs font-semibold">
         {value}
       </span>
+
     </div>
   );
 }
@@ -1240,12 +2221,13 @@ function Capability({
   title,
   description,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   title: string;
   description: string;
 }) {
   return (
     <div className="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+
       <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-100 text-orange-500 dark:bg-orange-500/10">
         {icon}
       </div>
@@ -1257,6 +2239,7 @@ function Capability({
       <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
         {description}
       </p>
+
     </div>
   );
 }
@@ -1274,6 +2257,7 @@ function DetailRow({
 }) {
   return (
     <div className="flex items-start justify-between gap-5 rounded-xl border border-slate-200 p-3 dark:border-white/10">
+
       <span className="text-xs text-slate-500 dark:text-slate-400">
         {label}
       </span>
@@ -1281,6 +2265,33 @@ function DetailRow({
       <span className="max-w-[65%] text-right text-sm font-semibold">
         {value}
       </span>
+
+    </div>
+  );
+}
+
+/* =========================================================
+   MINI INFO
+========================================================= */
+
+function MiniInfo({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-white/10 dark:bg-white/[0.03]">
+
+      <p className="text-[9px] uppercase tracking-wide text-slate-400">
+        {label}
+      </p>
+
+      <p className="mt-1 truncate text-[11px] font-semibold">
+        {value}
+      </p>
+
     </div>
   );
 }

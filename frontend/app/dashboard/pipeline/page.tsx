@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePersistentState } from "@/lib/persistence";
 import {
   ArrowRight,
@@ -22,6 +22,7 @@ import {
   UserRound,
   Users,
   X,
+  RotateCcw,
 } from "lucide-react";
 
 type PipelineStage =
@@ -65,6 +66,54 @@ type Deal = {
   quotationStatus: "NOT_CREATED" | "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED";
   quotationAmount: number;
   createdAt: string;
+};
+
+type QuotationStatus =
+  | "DRAFT"
+  | "SENT"
+  | "UNDER_REVIEW"
+  | "APPROVED"
+  | "REJECTED"
+  | "ACCEPTED"
+  | "EXPIRED"
+  | "CANCELLED";
+
+type LocalQuotationItem = {
+  id: number;
+  name: string;
+  description: string;
+  quantity: number;
+  rate: number;
+};
+
+type LocalQuotationRecord = {
+  id: number;
+  quotationNo: string;
+  version: number;
+  leadId: number;
+  customerName: string;
+  company: string;
+  email: string;
+  phone: string;
+  product: string;
+  assignedEmployeeId: number | null;
+  status: QuotationStatus;
+  validUntil: string;
+  paymentTerms: string;
+  discount: number;
+  tax: number;
+  notes: string;
+  signatureDataUrl: string;
+  items: LocalQuotationItem[];
+  createdAt: string;
+  versions: {
+    version: number;
+    date: string;
+    createdBy: string;
+    amount: number;
+    status: QuotationStatus;
+    note: string;
+  }[];
 };
 
 const employees: Employee[] = [
@@ -357,8 +406,68 @@ function getPriorityColor(priority: Priority) {
   }
 }
 
+function clampProbability(value: number) {
+  return Math.min(Math.max(Number(value) || 0, 0), 100);
+}
+
+function mapDealQuotationStatus(status: Deal["quotationStatus"]): QuotationStatus | null {
+  switch (status) {
+    case "DRAFT":
+      return "DRAFT";
+    case "SENT":
+      return "SENT";
+    case "ACCEPTED":
+      return "ACCEPTED";
+    case "REJECTED":
+      return "REJECTED";
+    case "NOT_CREATED":
+    default:
+      return null;
+  }
+}
+
+function mapQuotationStatusToDeal(status: QuotationStatus): Deal["quotationStatus"] | null {
+  switch (status) {
+    case "DRAFT":
+      return "DRAFT";
+    case "SENT":
+      return "SENT";
+    case "ACCEPTED":
+      return "ACCEPTED";
+    case "REJECTED":
+      return "REJECTED";
+    default:
+      return null;
+  }
+}
+
+function calculateQuotationRecordTotal(quotation: LocalQuotationRecord) {
+  const subtotal = quotation.items.reduce(
+    (sum, item) =>
+      sum + Math.max(Number(item.quantity) || 0, 0) * Math.max(Number(item.rate) || 0, 0),
+    0
+  );
+  const taxable = Math.max(subtotal - Math.max(Number(quotation.discount) || 0, 0), 0);
+  return taxable + (taxable * Math.max(Number(quotation.tax) || 0, 0)) / 100;
+}
+
+function getNextQuotationNumber(records: LocalQuotationRecord[]) {
+  let maxNumber = 0;
+  records.forEach((record) => {
+    const match = record.quotationNo.match(/QT-\d{4}-(\d+)/);
+    if (match) maxNumber = Math.max(maxNumber, Number(match[1]));
+  });
+  return `QT-${new Date().getFullYear()}-${String(maxNumber + 1).padStart(3, "0")}`;
+}
+
+function todayString() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function SalesPipelinePage() {
   const [deals, setDeals] = usePersistentState<Deal[]>("tivra_pipeline", initialDeals);
+  const [quotationRecords, setQuotationRecords] =
+    usePersistentState<LocalQuotationRecord[]>("tivra_quotations", []);
 
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState<"ALL" | PipelineStage>("ALL");
@@ -452,6 +561,69 @@ export default function SalesPipelinePage() {
       ? Math.round((wonDeals.length / deals.length) * 100)
       : 0;
 
+  useEffect(() => {
+    if (!quotationRecords.length) return;
+
+    const quotationByLead = new Map(
+      quotationRecords.map((quotation) => [quotation.leadId, quotation])
+    );
+
+    setDeals((current) => {
+      let changed = false;
+
+      const nextDeals = current.map((deal) => {
+        const quotation = quotationByLead.get(deal.leadId);
+        if (!quotation) return deal;
+
+        const nextQuotationStatus: Deal["quotationStatus"] =
+          quotation.status === "ACCEPTED"
+            ? "ACCEPTED"
+            : quotation.status === "REJECTED"
+              ? "REJECTED"
+              : quotation.status === "SENT"
+                ? "SENT"
+                : quotation.status === "DRAFT"
+                  ? "DRAFT"
+                  : deal.quotationStatus;
+
+        const nextStage =
+          nextQuotationStatus === "ACCEPTED" &&
+          deal.stage !== "WON" &&
+          deal.stage !== "LOST"
+            ? "NEGOTIATION"
+            : deal.stage;
+
+        if (
+          deal.quotationNo === quotation.quotationNo &&
+          deal.quotationStatus === nextQuotationStatus &&
+          deal.quotationAmount === Math.round(calculateQuotationRecordTotal(quotation)) &&
+          deal.stage === nextStage
+        ) {
+          return deal;
+        }
+
+        changed = true;
+        return {
+          ...deal,
+          quotationNo: quotation.quotationNo,
+          quotationStatus: nextQuotationStatus,
+          quotationAmount: Math.round(calculateQuotationRecordTotal(quotation)),
+          stage: nextStage,
+        };
+      });
+
+      return changed ? nextDeals : current;
+    });
+
+  }, [quotationRecords, setDeals]);
+
+  function resetFilters() {
+    setSearch("");
+    setStageFilter("ALL");
+    setEmployeeFilter("ALL");
+    setPriorityFilter("ALL");
+  }
+
   function resetForm() {
     setForm({
       dealName: "",
@@ -519,10 +691,23 @@ export default function SalesPipelinePage() {
 
   function openQuotationModal(deal: Deal) {
     setSelectedDeal(deal);
+
+    const linkedQuotation = quotationRecords.find(
+      (quotation) =>
+        quotation.leadId === deal.leadId ||
+        (deal.quotationNo && quotation.quotationNo === deal.quotationNo)
+    );
+
+    const linkedStatus = linkedQuotation
+      ? mapQuotationStatusToDeal(linkedQuotation.status)
+      : null;
+
     setQuotationForm({
-      quotationNo: deal.quotationNo,
-      quotationStatus: deal.quotationStatus,
-      quotationAmount: String(deal.quotationAmount || deal.value),
+      quotationNo: linkedQuotation?.quotationNo || deal.quotationNo,
+      quotationStatus: linkedStatus || deal.quotationStatus,
+      quotationAmount: linkedQuotation
+        ? String(Math.round(calculateQuotationRecordTotal(linkedQuotation)))
+        : String(deal.quotationAmount || deal.value),
     });
     setShowQuotationModal(true);
   }
@@ -532,72 +717,171 @@ export default function SalesPipelinePage() {
 
     const status = quotationForm.quotationStatus;
     const quotationNo = quotationForm.quotationNo.trim();
-    const quotationAmount = Number(quotationForm.quotationAmount) || 0;
+    const quotationAmount = Math.max(
+      Number(quotationForm.quotationAmount) || 0,
+      0
+    );
 
     if (status !== "NOT_CREATED" && !quotationNo) {
       alert("Please enter Quotation Number.");
       return;
     }
 
+    let amount = quotationAmount || selectedDeal.value;
+    const mappedStatus = mapDealQuotationStatus(status);
+
+    if (mappedStatus) {
+      const quotationNumberConflict = quotationRecords.some(
+        (quotation) =>
+          quotation.quotationNo === quotationNo &&
+          quotation.leadId !== selectedDeal.leadId
+      );
+
+      if (quotationNumberConflict) {
+        alert("This quotation number is already linked to another lead.");
+        return;
+      }
+
+      const existingQuotation = quotationRecords.find(
+        (quotation) =>
+          quotation.leadId === selectedDeal.leadId ||
+          quotation.quotationNo === quotationNo
+      );
+
+      if (existingQuotation) {
+        const existingTotal = Math.round(
+          calculateQuotationRecordTotal(existingQuotation)
+        );
+        if (existingQuotation.items?.length && existingTotal > 0) {
+          amount = existingTotal;
+        }
+        setQuotationRecords((current) =>
+          current.map((quotation) =>
+            quotation.id === existingQuotation.id
+              ? {
+                  ...quotation,
+                  quotationNo,
+                  customerName: selectedDeal.contactPerson || selectedDeal.company,
+                  company: selectedDeal.company,
+                  email: selectedDeal.email,
+                  phone: selectedDeal.phone,
+                  product: selectedDeal.product,
+                  assignedEmployeeId: selectedDeal.assignedEmployeeId,
+                  status: mappedStatus,
+                  validUntil: quotation.validUntil || selectedDeal.expectedCloseDate,
+                  discount: quotation.discount || 0,
+                  tax: quotation.tax || 18,
+                  notes: selectedDeal.notes,
+                  items: quotation.items?.length
+                    ? quotation.items
+                    : [
+                        {
+                          id: Date.now(),
+                          name: selectedDeal.product || "Project / Service",
+                          description: selectedDeal.notes || "Sales pipeline quotation",
+                          quantity: 1,
+                          rate: amount,
+                        },
+                      ],
+                }
+              : quotation
+          )
+        );
+      } else {
+        const createdAt = todayString();
+        const newQuotation: LocalQuotationRecord = {
+          id: Date.now(),
+          quotationNo,
+          version: 1,
+          leadId: selectedDeal.leadId,
+          customerName: selectedDeal.contactPerson || selectedDeal.company,
+          company: selectedDeal.company,
+          email: selectedDeal.email,
+          phone: selectedDeal.phone,
+          product: selectedDeal.product,
+          assignedEmployeeId: selectedDeal.assignedEmployeeId,
+          status: mappedStatus,
+          validUntil: selectedDeal.expectedCloseDate,
+          paymentTerms: "50% advance, 50% after completion",
+          discount: 0,
+          tax: 18,
+          notes: selectedDeal.notes || "Created from Sales Pipeline.",
+          signatureDataUrl: "",
+          items: [
+            {
+              id: Date.now() + 1,
+              name: selectedDeal.product || "Project / Service",
+              description: selectedDeal.notes || "Sales pipeline quotation",
+              quantity: 1,
+              rate: amount,
+            },
+          ],
+          createdAt,
+          versions: [
+            {
+              version: 1,
+              date: createdAt,
+              createdBy: "Current User",
+              amount,
+              status: mappedStatus,
+              note: `Created from ${selectedDeal.dealName} in Sales Pipeline`,
+            },
+          ],
+        };
+
+        setQuotationRecords((current) => [newQuotation, ...current]);
+      }
+    }
+
+    const updatedDeal: Deal = {
+      ...selectedDeal,
+      quotationNo: status === "NOT_CREATED" ? "" : quotationNo,
+      quotationStatus: status,
+      quotationAmount: status === "NOT_CREATED" ? 0 : amount,
+      stage:
+        status === "ACCEPTED" &&
+        selectedDeal.stage !== "WON" &&
+        selectedDeal.stage !== "LOST"
+          ? "NEGOTIATION"
+          : selectedDeal.stage,
+    };
+
     setDeals((current) =>
       current.map((deal) =>
-        deal.id === selectedDeal.id
-          ? {
-              ...deal,
-              quotationNo,
-              quotationStatus: status,
-              quotationAmount,
-              stage:
-                status === "ACCEPTED" && deal.stage !== "WON"
-                  ? "NEGOTIATION"
-                  : deal.stage,
-            }
-          : deal
+        deal.id === selectedDeal.id ? updatedDeal : deal
       )
     );
 
-    setSelectedDeal((current) =>
-      current
-        ? {
-            ...current,
-            quotationNo,
-            quotationStatus: status,
-            quotationAmount,
-            stage:
-              status === "ACCEPTED" && current.stage !== "WON"
-                ? "NEGOTIATION"
-                : current.stage,
-          }
-        : current
-    );
-
+    setSelectedDeal(updatedDeal);
     setShowQuotationModal(false);
   }
 
   function saveNewDeal() {
-    if (!form.dealName || !form.company || !form.value) {
-      alert("Please fill Deal Name, Company and Deal Value.");
+    const safeValue = Math.max(Number(form.value) || 0, 0);
+
+    if (!form.dealName.trim() || !form.company.trim() || safeValue <= 0) {
+      alert("Please fill Deal Name, Company and a Deal Value greater than 0.");
       return;
     }
 
     const newDeal: Deal = {
       id: Math.floor(Math.random() * 9000) + 2000,
       leadId: Math.floor(Math.random() * 9000) + 1000,
-      dealName: form.dealName,
-      company: form.company,
-      contactPerson: form.contactPerson,
-      email: form.email,
-      phone: form.phone,
-      product: form.product,
-      source: form.source,
+      dealName: form.dealName.trim(),
+      company: form.company.trim(),
+      contactPerson: form.contactPerson.trim(),
+      email: form.email.trim(),
+      phone: form.phone.trim(),
+      product: form.product.trim(),
+      source: form.source.trim() || "Website",
       stage: form.stage,
-      value: Number(form.value),
-      probability: Number(form.probability),
+      value: safeValue,
+      probability: clampProbability(Number(form.probability)),
       priority: form.priority,
-      assignedEmployeeId: Number(form.assignedEmployeeId),
+      assignedEmployeeId: Number(form.assignedEmployeeId) || 1,
       nextFollowUp: form.nextFollowUp,
       expectedCloseDate: form.expectedCloseDate,
-      notes: form.notes,
+      notes: form.notes.trim(),
       createdAt: new Date().toISOString().slice(0, 10),
       quotationNo: "",
       quotationStatus: "NOT_CREATED",
@@ -612,43 +896,83 @@ export default function SalesPipelinePage() {
   function saveEditDeal() {
     if (!selectedDeal) return;
 
+    const safeValue = Math.max(Number(form.value) || 0, 0);
+
+    if (!form.dealName.trim() || !form.company.trim() || safeValue <= 0) {
+      alert("Please fill Deal Name, Company and a Deal Value greater than 0.");
+      return;
+    }
+
+    const safeProbability = clampProbability(Number(form.probability));
+
     setDeals((current) =>
       current.map((deal) =>
         deal.id === selectedDeal.id
           ? {
               ...deal,
-              dealName: form.dealName,
-              company: form.company,
-              contactPerson: form.contactPerson,
-              email: form.email,
-              phone: form.phone,
-              product: form.product,
-              source: form.source,
+              dealName: form.dealName.trim(),
+              company: form.company.trim(),
+              contactPerson: form.contactPerson.trim(),
+              email: form.email.trim(),
+              phone: form.phone.trim(),
+              product: form.product.trim(),
+              source: form.source.trim() || "Website",
               stage: form.stage,
-              value: Number(form.value),
-              probability: Number(form.probability),
+              value: safeValue,
+              probability: safeProbability,
               priority: form.priority,
-              assignedEmployeeId: Number(form.assignedEmployeeId),
+              assignedEmployeeId: Number(form.assignedEmployeeId) || 1,
               nextFollowUp: form.nextFollowUp,
               expectedCloseDate: form.expectedCloseDate,
-              notes: form.notes,
+              notes: form.notes.trim(),
             }
           : deal
       )
+    );
+
+    setSelectedDeal((current) =>
+      current
+        ? {
+            ...current,
+            dealName: form.dealName.trim(),
+            company: form.company.trim(),
+            contactPerson: form.contactPerson.trim(),
+            email: form.email.trim(),
+            phone: form.phone.trim(),
+            product: form.product.trim(),
+            source: form.source.trim() || "Website",
+            stage: form.stage,
+            value: safeValue,
+            probability: safeProbability,
+            priority: form.priority,
+            assignedEmployeeId: Number(form.assignedEmployeeId) || 1,
+            nextFollowUp: form.nextFollowUp,
+            expectedCloseDate: form.expectedCloseDate,
+            notes: form.notes.trim(),
+          }
+        : current
     );
 
     setShowEditModal(false);
   }
 
   function duplicateDeal(deal: Deal) {
+    const nextDealId = Math.max(...deals.map((item) => item.id), 1000) + 1;
+    const nextLeadId = Math.max(...deals.map((item) => item.leadId), 1000) + 1;
+
     const duplicatedDeal: Deal = {
       ...deal,
-      id: Math.floor(Math.random() * 9000) + 3000,
-      leadId: Math.floor(Math.random() * 9000) + 3000,
+      id: nextDealId,
+      leadId: nextLeadId,
       dealName: `${deal.dealName} - Copy`,
       stage: "NEW",
       probability: 10,
-      createdAt: new Date().toISOString().slice(0, 10),
+      nextFollowUp: "",
+      expectedCloseDate: "",
+      quotationNo: "",
+      quotationStatus: "NOT_CREATED",
+      quotationAmount: 0,
+      createdAt: todayString(),
     };
 
     setDeals((current) => [duplicatedDeal, ...current]);
@@ -934,6 +1258,16 @@ export default function SalesPipelinePage() {
                   { value: "LOW", label: "Low" },
                 ]}
               />
+
+              <button
+                type="button"
+                onClick={resetFilters}
+                title="Reset all filters"
+                className="flex items-center gap-2 rounded-lg border border-slate-800 bg-[#080b11] px-3 py-2.5 text-xs text-slate-400 transition hover:border-slate-700 hover:bg-slate-800 hover:text-slate-200"
+              >
+                <RotateCcw size={14} />
+                Reset
+              </button>
             </div>
           </div>
         </div>
@@ -1442,6 +1776,10 @@ export default function SalesPipelinePage() {
               </div>
             </div>
 
+            <div className="mt-5 rounded-lg border border-slate-800 bg-[#090c12] p-3 text-xs leading-5 text-slate-500">
+              Saving here keeps the quotation linked to this deal and creates/updates the same quotation in the Quotations module.
+            </div>
+
             <div className="mt-5 grid gap-4">
               <FormInput
                 label="Quotation Number"
@@ -1499,7 +1837,7 @@ export default function SalesPipelinePage() {
                 onClick={saveQuotationConnection}
                 className="rounded-lg bg-yellow-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-yellow-500"
               >
-                Save Quotation Connection
+                Save & Sync Quotation
               </button>
             </div>
           </Modal>
@@ -1858,7 +2196,7 @@ function DealForm({
           onChange={(value) =>
             setForm((current) => ({
               ...current,
-              probability: value.replace(/\D/g, "").slice(0, 3),
+              probability: String(clampProbability(Number(value.replace(/\D/g, "")))),
             }))
           }
           placeholder="50"

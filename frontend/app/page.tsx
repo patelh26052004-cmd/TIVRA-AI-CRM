@@ -196,7 +196,7 @@ export default function Home() {
             </Link>
 
             <Link
-              href="/login"
+              href="/register"
               className="rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-bold text-white hover:bg-orange-400"
             >
               Get Started
@@ -247,7 +247,7 @@ export default function Home() {
                 </Link>
 
                 <Link
-                  href="/login"
+                  href="/register"
                   className="rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-bold text-white"
                 >
                   Get Started
@@ -281,7 +281,7 @@ export default function Home() {
 
             <div className="mt-9 flex flex-wrap gap-3">
               <Link
-                href="/login"
+                href="/register"
                 className="flex items-center gap-2 rounded-xl bg-orange-500 px-6 py-3.5 text-sm font-bold text-white shadow-xl shadow-orange-500/20 hover:bg-orange-400"
               >
                 Get Started
@@ -1007,7 +1007,7 @@ export default function Home() {
 
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Link
-              href="/login"
+              href="/register"
               className="rounded-xl bg-white px-6 py-3.5 text-sm font-bold text-orange-500 hover:bg-orange-50"
             >
               Get Started

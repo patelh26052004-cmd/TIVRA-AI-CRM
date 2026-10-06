@@ -2,18 +2,23 @@
 
 import { useMemo, useState } from "react";
 import {
+  Target,
   Flame,
-  Search,
-  SlidersHorizontal,
   TrendingUp,
   Users,
-  Target,
-  Clock3,
-  IndianRupee,
+  Search,
   MessageSquare,
+  IndianRupee,
+  Clock3,
   ChevronRight,
   X,
+  Sparkles,
+  Mail,
+  Phone,
+  Filter,
 } from "lucide-react";
+
+type ScoreFilter = "all" | "hot" | "warm" | "cold";
 
 type Lead = {
   id: number;
@@ -22,646 +27,843 @@ type Lead = {
   email: string;
   phone: string;
   score: number;
-  intent: string;
+  value: number;
+  source: string;
+  lastActivity: string;
+  status: string;
+  engagement: number;
   budget: string;
   timeline: string;
-  engagement: string;
-  fit: string;
-  stage: string;
-  recommendation: string;
-  lastActivity: string;
+  industry: string;
 };
 
-const initialLeads: Lead[] = [
+const leads: Lead[] = [
   {
     id: 1,
-    name: "Rajesh Mehta",
-    company: "Mehta Industries",
-    email: "rajesh@mehtaindustries.com",
+    name: "Rahul Shah",
+    company: "Shah Industries",
+    email: "rahul@shahindustries.com",
     phone: "+91 98765 43210",
-    score: 92,
-    intent: "Very High",
-    budget: "₹50,000+",
+    score: 94,
+    value: 250000,
+    source: "Website",
+    lastActivity: "12 min ago",
+    status: "New",
+    engagement: 96,
+    budget: "₹2L - ₹5L",
     timeline: "Within 7 days",
-    engagement: "High",
-    fit: "Excellent",
-    stage: "Qualified",
-    recommendation: "Contact immediately and schedule a demo.",
-    lastActivity: "10 min ago",
+    industry: "Manufacturing",
   },
   {
     id: 2,
-    name: "Priya Shah",
-    company: "Shah Manufacturing",
-    email: "priya@shahmfg.com",
+    name: "Priya Mehta",
+    company: "Mehta Enterprises",
+    email: "priya@mehtaenterprises.com",
     phone: "+91 98250 12345",
-    score: 86,
-    intent: "High",
-    budget: "₹25,000–₹50,000",
-    timeline: "Within 2 weeks",
-    engagement: "High",
-    fit: "Excellent",
-    stage: "Contacted",
-    recommendation: "Send product information and follow up today.",
+    score: 88,
+    value: 180000,
+    source: "WhatsApp",
     lastActivity: "35 min ago",
+    status: "Contacted",
+    engagement: 89,
+    budget: "₹1L - ₹3L",
+    timeline: "Within 15 days",
+    industry: "Retail",
   },
   {
     id: 3,
     name: "Amit Patel",
-    company: "Patel Engineering",
-    email: "amit@pateleng.com",
-    phone: "+91 99090 45678",
-    score: 74,
-    intent: "High",
-    budget: "₹25,000+",
+    company: "Patel Tech Solutions",
+    email: "amit@pateltech.com",
+    phone: "+91 99090 56789",
+    score: 82,
+    value: 150000,
+    source: "Referral",
+    lastActivity: "1 hour ago",
+    status: "Qualified",
+    engagement: 84,
+    budget: "₹1L - ₹2L",
     timeline: "This month",
-    engagement: "Medium",
-    fit: "Good",
-    stage: "Qualified",
-    recommendation: "Understand requirements and share quotation.",
-    lastActivity: "2 hours ago",
+    industry: "Technology",
   },
   {
     id: 4,
     name: "Neha Desai",
-    company: "Desai Traders",
-    email: "neha@desaitraders.com",
-    phone: "+91 98123 67890",
-    score: 61,
-    intent: "Medium",
-    budget: "₹10,000–₹25,000",
-    timeline: "1–2 months",
-    engagement: "Medium",
-    fit: "Good",
-    stage: "Contacted",
-    recommendation: "Continue nurturing with useful product content.",
-    lastActivity: "5 hours ago",
+    company: "Desai Textiles",
+    email: "neha@desaitextiles.com",
+    phone: "+91 98123 45678",
+    score: 76,
+    value: 125000,
+    source: "Facebook",
+    lastActivity: "2 hours ago",
+    status: "Contacted",
+    engagement: 78,
+    budget: "₹1L - ₹2L",
+    timeline: "This month",
+    industry: "Textiles",
   },
   {
     id: 5,
     name: "Karan Joshi",
-    company: "Joshi Enterprises",
-    email: "karan@joshient.com",
-    phone: "+91 98980 11223",
-    score: 48,
-    intent: "Medium",
-    budget: "Not specified",
-    timeline: "Not specified",
-    engagement: "Low",
-    fit: "Average",
-    stage: "New",
-    recommendation: "Ask qualification questions before sales follow-up.",
-    lastActivity: "Yesterday",
+    company: "Joshi Motors",
+    email: "karan@joshimotors.com",
+    phone: "+91 98980 23456",
+    score: 69,
+    value: 95000,
+    source: "Instagram",
+    lastActivity: "3 hours ago",
+    status: "New",
+    engagement: 70,
+    budget: "₹50K - ₹1L",
+    timeline: "Next month",
+    industry: "Automobile",
   },
   {
     id: 6,
     name: "Sneha Patel",
-    company: "SP Solutions",
-    email: "sneha@spsolutions.com",
+    company: "SP Fashion",
+    email: "sneha@spfashion.com",
     phone: "+91 97654 32109",
-    score: 35,
-    intent: "Low",
-    budget: "Not specified",
-    timeline: "Later",
-    engagement: "Low",
-    fit: "Average",
-    stage: "New",
-    recommendation: "Add to a low-frequency nurturing sequence.",
+    score: 61,
+    value: 70000,
+    source: "Google Ads",
+    lastActivity: "5 hours ago",
+    status: "New",
+    engagement: 64,
+    budget: "₹50K - ₹1L",
+    timeline: "Next month",
+    industry: "Fashion",
+  },
+  {
+    id: 7,
+    name: "Dhruv Mehta",
+    company: "Mehta Foods",
+    email: "dhruv@mehtafoods.com",
+    phone: "+91 99123 67890",
+    score: 48,
+    value: 45000,
+    source: "Website",
+    lastActivity: "1 day ago",
+    status: "New",
+    engagement: 51,
+    budget: "₹25K - ₹50K",
+    timeline: "2-3 months",
+    industry: "Food",
+  },
+  {
+    id: 8,
+    name: "Riya Shah",
+    company: "Shah Designs",
+    email: "riya@shahdesigns.com",
+    phone: "+91 98700 11223",
+    score: 32,
+    value: 25000,
+    source: "Organic",
     lastActivity: "2 days ago",
+    status: "New",
+    engagement: 34,
+    budget: "Below ₹50K",
+    timeline: "Not decided",
+    industry: "Design",
   },
 ];
 
 function getScoreType(score: number) {
-  if (score >= 80) return "Hot";
-  if (score >= 50) return "Warm";
-  return "Cold";
+  if (score >= 80) return "hot";
+  if (score >= 60) return "warm";
+  return "cold";
 }
 
-function scoreClass(score: number) {
+function getScoreLabel(score: number) {
+  if (score >= 80) return "Hot Lead";
+  if (score >= 60) return "Warm Lead";
+  return "Cold Lead";
+}
+
+function getScoreColor(score: number) {
   if (score >= 80) {
-    return "bg-orange-100 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400";
+    return "text-red-400 bg-red-500/10 border-red-500/20";
   }
 
-  if (score >= 50) {
-    return "bg-yellow-100 text-yellow-700 dark:bg-yellow-500/10 dark:text-yellow-400";
+  if (score >= 60) {
+    return "text-orange-400 bg-orange-500/10 border-orange-500/20";
   }
 
-  return "bg-blue-100 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400";
+  return "text-blue-400 bg-blue-500/10 border-blue-500/20";
 }
 
-function scoreBarClass(score: number) {
-  if (score >= 80) return "bg-orange-500";
-  if (score >= 50) return "bg-yellow-500";
+function getScoreBarColor(score: number) {
+  if (score >= 80) return "bg-red-500";
+  if (score >= 60) return "bg-orange-500";
   return "bg-blue-500";
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
 export default function AIScoringPage() {
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("All");
+  const [filter, setFilter] = useState<ScoreFilter>("all");
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [showRules, setShowRules] = useState(false);
 
-  const hotCount = initialLeads.filter((lead) => lead.score >= 80).length;
-  const warmCount = initialLeads.filter(
-    (lead) => lead.score >= 50 && lead.score < 80
+  const hotCount = leads.filter((lead) => lead.score >= 80).length;
+  const warmCount = leads.filter(
+    (lead) => lead.score >= 60 && lead.score < 80
   ).length;
-  const coldCount = initialLeads.filter((lead) => lead.score < 50).length;
+  const coldCount = leads.filter((lead) => lead.score < 60).length;
 
   const averageScore = Math.round(
-    initialLeads.reduce((sum, lead) => sum + lead.score, 0) /
-      initialLeads.length
+    leads.reduce((total, lead) => total + lead.score, 0) / leads.length
   );
 
   const filteredLeads = useMemo(() => {
-    return initialLeads.filter((lead) => {
+    return leads.filter((lead) => {
+      const searchText = search.toLowerCase().trim();
+
       const matchesSearch =
-        lead.name.toLowerCase().includes(search.toLowerCase()) ||
-        lead.company.toLowerCase().includes(search.toLowerCase()) ||
-        lead.email.toLowerCase().includes(search.toLowerCase());
+        !searchText ||
+        lead.name.toLowerCase().includes(searchText) ||
+        lead.company.toLowerCase().includes(searchText) ||
+        lead.email.toLowerCase().includes(searchText) ||
+        lead.industry.toLowerCase().includes(searchText);
 
-      const type = getScoreType(lead.score);
-
-      const matchesFilter = filter === "All" || type === filter;
+      const matchesFilter =
+        filter === "all" || getScoreType(lead.score) === filter;
 
       return matchesSearch && matchesFilter;
     });
   }, [search, filter]);
 
   return (
-    <main className="min-h-[calc(100vh-73px)] bg-slate-50 px-4 py-6 text-slate-950 dark:bg-[#070c1b] dark:text-white sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl space-y-6">
-        {/* PAGE TITLE */}
-        <div>
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-            <div>
-              <div className="mb-2 flex items-center gap-2">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/10 text-orange-500">
-                  <Target size={21} />
-                </div>
-
-                <span className="text-sm font-medium text-orange-500">
-                  AI Intelligence
-                </span>
+    <main className="min-h-screen bg-[#09090b] text-white">
+      <div className="mx-auto max-w-[1500px] p-6">
+        {/* Header */}
+        <div className="mb-8 flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
+          <div>
+            <div className="mb-2 flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-500/15">
+                <Target className="h-6 w-6 text-orange-400" />
               </div>
 
-              <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-                AI Lead Scoring
-              </h1>
-
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Identify which leads need attention first using AI-powered
-                scoring.
-              </p>
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight">
+                  AI Lead Scoring
+                </h1>
+                <p className="text-sm text-zinc-500">
+                  AI-powered lead qualification and prioritization
+                </p>
+              </div>
             </div>
-
-            <button
-              type="button"
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold shadow-sm transition hover:border-orange-300 hover:text-orange-500 dark:border-white/10 dark:bg-[#111a2e]"
-            >
-              <SlidersHorizontal size={17} />
-              Scoring Rules
-            </button>
           </div>
+
+          <button
+            onClick={() => setShowRules(true)}
+            className="flex items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-orange-500/40 hover:bg-zinc-800"
+          >
+            <Sparkles className="h-4 w-4 text-orange-400" />
+            Scoring Rules
+          </button>
         </div>
 
-        {/* SUMMARY CARDS */}
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <SummaryCard
-            title="Average AI Score"
-            value={`${averageScore}/100`}
-            subtitle="Across all leads"
-            icon={<Target size={20} />}
-          />
+        {/* Stats */}
+        <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <span className="text-sm text-zinc-400">Average Score</span>
 
-          <SummaryCard
-            title="Hot Leads"
-            value={hotCount.toString()}
-            subtitle="Score 80–100"
-            icon={<Flame size={20} />}
-            accent="orange"
-          />
-
-          <SummaryCard
-            title="Warm Leads"
-            value={warmCount.toString()}
-            subtitle="Score 50–79"
-            icon={<TrendingUp size={20} />}
-            accent="yellow"
-          />
-
-          <SummaryCard
-            title="Cold Leads"
-            value={coldCount.toString()}
-            subtitle="Score below 50"
-            icon={<Users size={20} />}
-            accent="blue"
-          />
-        </section>
-
-        {/* AI EXPLANATION */}
-        <section className="rounded-2xl border border-orange-200 bg-orange-50 p-5 dark:border-orange-500/20 dark:bg-orange-500/5">
-          <div className="flex gap-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-white">
-              <Target size={21} />
+              <div className="rounded-lg bg-orange-500/10 p-2">
+                <Target className="h-5 w-5 text-orange-400" />
+              </div>
             </div>
 
-            <div>
-              <h2 className="font-semibold text-slate-950 dark:text-white">
-                How AI Lead Scoring works
-              </h2>
+            <div className="text-3xl font-bold">{averageScore}</div>
 
-              <p className="mt-1 max-w-4xl text-sm leading-6 text-slate-600 dark:text-slate-400">
-                TIVRA evaluates lead intent, business fit, budget, purchase
-                timeline and engagement to generate a score from 0 to 100.
-                Higher scores indicate stronger buying signals and can help
-                sales teams decide which leads to contact first.
-              </p>
+            <p className="mt-1 text-xs text-emerald-400">
+              AI confidence score
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <span className="text-sm text-zinc-400">Hot Leads</span>
+
+              <div className="rounded-lg bg-red-500/10 p-2">
+                <Flame className="h-5 w-5 text-red-400" />
+              </div>
+            </div>
+
+            <div className="text-3xl font-bold">{hotCount}</div>
+
+            <p className="mt-1 text-xs text-red-400">Priority follow-up</p>
+          </div>
+
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <span className="text-sm text-zinc-400">Warm Leads</span>
+
+              <div className="rounded-lg bg-orange-500/10 p-2">
+                <TrendingUp className="h-5 w-5 text-orange-400" />
+              </div>
+            </div>
+
+            <div className="text-3xl font-bold">{warmCount}</div>
+
+            <p className="mt-1 text-xs text-orange-400">
+              Needs nurturing
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <span className="text-sm text-zinc-400">Cold Leads</span>
+
+              <div className="rounded-lg bg-blue-500/10 p-2">
+                <Users className="h-5 w-5 text-blue-400" />
+              </div>
+            </div>
+
+            <div className="text-3xl font-bold">{coldCount}</div>
+
+            <p className="mt-1 text-xs text-blue-400">Low priority</p>
+          </div>
+        </section>
+
+        {/* AI Banner */}
+        <section className="mb-6 overflow-hidden rounded-2xl border border-orange-500/20 bg-gradient-to-r from-orange-500/10 via-zinc-900 to-zinc-900 p-5">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="rounded-xl bg-orange-500/15 p-3">
+                <Sparkles className="h-6 w-6 text-orange-400" />
+              </div>
+
+              <div>
+                <h2 className="font-semibold text-white">
+                  AI scoring is active
+                </h2>
+
+                <p className="mt-1 max-w-2xl text-sm text-zinc-400">
+                  Leads are automatically prioritized using engagement,
+                  budget, activity, source and buying timeline.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-400">
+              ● System Active
             </div>
           </div>
         </section>
 
-        {/* SEARCH + FILTER */}
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-[#111a2e]">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="relative w-full lg:max-w-md">
-              <Search
-                size={18}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              />
+        {/* Search / Filter */}
+        <section className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
+          <div className="flex flex-col gap-3 lg:flex-row">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
 
               <input
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search leads or companies..."
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-500/10 dark:border-white/10 dark:bg-[#0b1222]"
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search leads, company, email..."
+                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 py-2.5 pl-10 pr-4 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-orange-500/50"
               />
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              {["All", "Hot", "Warm", "Cold"].map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => setFilter(item)}
-                  className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
-                    filter === item
-                      ? "bg-orange-500 text-white"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-400 dark:hover:bg-white/10"
-                  }`}
-                >
-                  {item}
-                </button>
-              ))}
+            <div className="flex items-center gap-2 overflow-x-auto">
+              <Filter className="h-4 w-4 shrink-0 text-zinc-500" />
+
+              {(["all", "hot", "warm", "cold"] as ScoreFilter[]).map(
+                (item) => (
+                  <button
+                    key={item}
+                    onClick={() => setFilter(item)}
+                    className={`whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-medium capitalize transition ${
+                      filter === item
+                        ? "bg-orange-500 text-white"
+                        : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white"
+                    }`}
+                  >
+                    {item === "all" ? "All Leads" : `${item} Leads`}
+                  </button>
+                )
+              )}
             </div>
           </div>
         </section>
 
-        {/* LEAD TABLE */}
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-[#111a2e]">
-          <div className="border-b border-slate-200 px-5 py-4 dark:border-white/10">
+        {/* Lead Table */}
+        <section className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/70">
+          <div className="border-b border-zinc-800 px-5 py-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="font-semibold">AI Scored Leads</h2>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                <h2 className="font-semibold">Lead Scores</h2>
+                <p className="mt-1 text-xs text-zinc-500">
                   {filteredLeads.length} leads found
                 </p>
               </div>
 
-              <div className="hidden items-center gap-2 text-xs text-slate-500 sm:flex dark:text-slate-400">
-                <span className="h-2 w-2 rounded-full bg-orange-500" />
-                AI updated scores
+              <div className="hidden text-xs text-zinc-500 md:block">
+                Updated just now
               </div>
             </div>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[950px] text-left">
+            <table className="w-full min-w-[900px]">
               <thead>
-                <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500 dark:border-white/10 dark:text-slate-400">
-                  <th className="px-5 py-4 font-medium">Lead</th>
-                  <th className="px-5 py-4 font-medium">AI Score</th>
-                  <th className="px-5 py-4 font-medium">Intent</th>
-                  <th className="px-5 py-4 font-medium">Budget</th>
-                  <th className="px-5 py-4 font-medium">Timeline</th>
-                  <th className="px-5 py-4 font-medium">Engagement</th>
-                  <th className="px-5 py-4 font-medium">Last Activity</th>
-                  <th className="px-5 py-4 font-medium"></th>
+                <tr className="border-b border-zinc-800 bg-zinc-950/50 text-left text-xs uppercase tracking-wide text-zinc-500">
+                  <th className="px-5 py-4">Lead</th>
+                  <th className="px-5 py-4">AI Score</th>
+                  <th className="px-5 py-4">Potential Value</th>
+                  <th className="px-5 py-4">Source</th>
+                  <th className="px-5 py-4">Last Activity</th>
+                  <th className="px-5 py-4">Status</th>
+                  <th className="px-5 py-4"></th>
                 </tr>
               </thead>
 
-              <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                {filteredLeads.map((lead) => {
-                  const scoreType = getScoreType(lead.score);
+              <tbody>
+                {filteredLeads.map((lead) => (
+                  <tr
+                    key={lead.id}
+                    className="border-b border-zinc-800/70 transition hover:bg-zinc-800/30"
+                  >
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-500/10 font-semibold text-orange-400">
+                          {lead.name
+                            .split(" ")
+                            .map((name) => name[0])
+                            .join("")
+                            .slice(0, 2)}
+                        </div>
 
-                  return (
-                    <tr
-                      key={lead.id}
-                      className="transition hover:bg-slate-50 dark:hover:bg-white/[0.02]"
-                    >
-                      {/* LEAD */}
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-100 font-semibold text-orange-600 dark:bg-orange-500/10 dark:text-orange-400">
-                            {lead.name
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")
-                              .slice(0, 2)}
+                        <div>
+                          <div className="font-medium text-white">
+                            {lead.name}
                           </div>
 
-                          <div>
-                            <p className="font-semibold">{lead.name}</p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">
-                              {lead.company}
-                            </p>
+                          <div className="text-xs text-zinc-500">
+                            {lead.company}
                           </div>
                         </div>
-                      </td>
+                      </div>
+                    </td>
 
-                      {/* SCORE */}
-                      <td className="px-5 py-4">
-                        <div className="w-28">
-                          <div className="mb-1.5 flex items-center justify-between">
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-24">
+                          <div className="mb-1 flex justify-between">
                             <span
-                              className={`rounded-full px-2 py-0.5 text-xs font-bold ${scoreClass(
-                                lead.score
-                              )}`}
+                              className={`text-sm font-bold ${
+                                getScoreType(lead.score) === "hot"
+                                  ? "text-red-400"
+                                  : getScoreType(lead.score) === "warm"
+                                    ? "text-orange-400"
+                                    : "text-blue-400"
+                              }`}
                             >
                               {lead.score}
                             </span>
-
-                            <span className="text-[11px] text-slate-400">
-                              {scoreType}
-                            </span>
                           </div>
 
-                          <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
+                          <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
                             <div
-                              className={`h-full rounded-full ${scoreBarClass(
+                              className={`h-full rounded-full ${getScoreBarColor(
                                 lead.score
                               )}`}
                               style={{ width: `${lead.score}%` }}
                             />
                           </div>
                         </div>
-                      </td>
 
-                      {/* INTENT */}
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-2 text-sm">
-                          <MessageSquare
-                            size={15}
-                            className="text-orange-500"
-                          />
-                          {lead.intent}
-                        </div>
-                      </td>
-
-                      {/* BUDGET */}
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-2 text-sm">
-                          <IndianRupee
-                            size={15}
-                            className="text-slate-400"
-                          />
-                          {lead.budget}
-                        </div>
-                      </td>
-
-                      {/* TIMELINE */}
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-2 text-sm">
-                          <Clock3 size={15} className="text-slate-400" />
-                          {lead.timeline}
-                        </div>
-                      </td>
-
-                      {/* ENGAGEMENT */}
-                      <td className="px-5 py-4">
                         <span
-                          className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                            lead.engagement === "High"
-                              ? "bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400"
-                              : lead.engagement === "Medium"
-                              ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-500/10 dark:text-yellow-400"
-                              : "bg-slate-100 text-slate-600 dark:bg-white/5 dark:text-slate-400"
-                          }`}
+                          className={`rounded-full border px-2 py-1 text-[10px] font-medium ${getScoreColor(
+                            lead.score
+                          )}`}
                         >
-                          {lead.engagement}
+                          {getScoreLabel(lead.score)}
                         </span>
-                      </td>
+                      </div>
+                    </td>
 
-                      {/* ACTIVITY */}
-                      <td className="px-5 py-4 text-sm text-slate-500 dark:text-slate-400">
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-2 text-sm font-medium text-zinc-200">
+                        <IndianRupee className="h-4 w-4 text-zinc-500" />
+                        {formatCurrency(lead.value)}
+                      </div>
+                    </td>
+
+                    <td className="px-5 py-4">
+                      <span className="rounded-lg bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-300">
+                        {lead.source}
+                      </span>
+                    </td>
+
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-2 text-xs text-zinc-400">
+                        <Clock3 className="h-4 w-4 text-zinc-600" />
                         {lead.lastActivity}
-                      </td>
+                      </div>
+                    </td>
 
-                      {/* DETAILS */}
-                      <td className="px-5 py-4 text-right">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedLead(lead)}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-orange-50 hover:text-orange-500 dark:hover:bg-orange-500/10"
-                        >
-                          <ChevronRight size={18} />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                    <td className="px-5 py-4">
+                      <span className="rounded-full bg-zinc-800 px-2.5 py-1 text-xs text-zinc-300">
+                        {lead.status}
+                      </span>
+                    </td>
+
+                    <td className="px-5 py-4">
+                      <button
+                        onClick={() => setSelectedLead(lead)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 transition hover:bg-orange-500/10 hover:text-orange-400"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
 
           {filteredLeads.length === 0 && (
             <div className="px-5 py-16 text-center">
-              <Users className="mx-auto text-slate-300 dark:text-slate-600" size={38} />
-              <p className="mt-3 font-medium">No leads found</p>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              <Users className="mx-auto mb-3 h-10 w-10 text-zinc-700" />
+              <h3 className="font-medium text-zinc-300">
+                No leads found
+              </h3>
+              <p className="mt-1 text-sm text-zinc-600">
                 Try another search or filter.
               </p>
             </div>
           )}
         </section>
-      </div>
 
-      {/* LEAD DETAILS MODAL */}
-      {selectedLead && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
-          onClick={() => setSelectedLead(null)}
-        >
-          <div
-            className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-[#111a2e]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* MODAL HEADER */}
-            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-white/10">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-orange-500">
-                  AI Lead Analysis
-                </p>
+        {/* Selected Lead Drawer */}
+        {selectedLead && (
+          <div className="fixed inset-0 z-50">
+            <div
+              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+              onClick={() => setSelectedLead(null)}
+            />
 
-                <h2 className="mt-1 text-lg font-bold">
-                  {selectedLead.name}
-                </h2>
+            <div className="absolute right-0 top-0 h-full w-full max-w-lg overflow-y-auto border-l border-zinc-800 bg-[#0d0d0f] shadow-2xl">
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-800 bg-[#0d0d0f]/95 px-6 py-5 backdrop-blur">
+                <div>
+                  <h2 className="text-lg font-semibold">
+                    Lead Information
+                  </h2>
+                  <p className="text-xs text-zinc-500">
+                    AI scoring details
+                  </p>
+                </div>
 
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  {selectedLead.company}
-                </p>
+                <button
+                  onClick={() => setSelectedLead(null)}
+                  className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-800 hover:text-white"
+                >
+                  <X className="h-5 w-5" />
+                </button>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setSelectedLead(null)}
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-white"
-              >
-                <X size={18} />
-              </button>
-            </div>
+              <div className="space-y-6 p-6">
+                {/* Lead Header */}
+                <div className="flex items-center gap-4">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-orange-500/10 text-lg font-bold text-orange-400">
+                    {selectedLead.name
+                      .split(" ")
+                      .map((name) => name[0])
+                      .join("")
+                      .slice(0, 2)}
+                  </div>
 
-            <div className="space-y-5 p-5">
-              {/* SCORE */}
-              <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 dark:border-orange-500/20 dark:bg-orange-500/5">
-                <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
-                      AI Lead Score
+                    <h3 className="text-lg font-semibold">
+                      {selectedLead.name}
+                    </h3>
+
+                    <p className="text-sm text-zinc-500">
+                      {selectedLead.company}
                     </p>
+                  </div>
+                </div>
 
-                    <div className="mt-1 flex items-center gap-3">
-                      <span className="text-4xl font-bold text-orange-500">
-                        {selectedLead.score}
+                {/* Score */}
+                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
+                  <div className="mb-4 flex items-center justify-between">
+                    <span className="text-sm text-zinc-400">
+                      AI Lead Score
+                    </span>
+
+                    <span
+                      className={`rounded-full border px-3 py-1 text-xs font-medium ${getScoreColor(
+                        selectedLead.score
+                      )}`}
+                    >
+                      {getScoreLabel(selectedLead.score)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-end gap-3">
+                    <span className="text-5xl font-bold">
+                      {selectedLead.score}
+                    </span>
+                    <span className="mb-2 text-zinc-600">/ 100</span>
+                  </div>
+
+                  <div className="mt-5 h-2 overflow-hidden rounded-full bg-zinc-800">
+                    <div
+                      className={`h-full rounded-full ${getScoreBarColor(
+                        selectedLead.score
+                      )}`}
+                      style={{ width: `${selectedLead.score}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Contact */}
+                <div>
+                  <h3 className="mb-3 text-sm font-semibold text-zinc-300">
+                    Contact Details
+                  </h3>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/60 p-3">
+                      <Mail className="h-4 w-4 text-zinc-500" />
+                      <span className="text-sm text-zinc-300">
+                        {selectedLead.email}
                       </span>
+                    </div>
 
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-bold ${scoreClass(
-                          selectedLead.score
-                        )}`}
-                      >
-                        {getScoreType(selectedLead.score)}
+                    <div className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/60 p-3">
+                      <Phone className="h-4 w-4 text-zinc-500" />
+                      <span className="text-sm text-zinc-300">
+                        {selectedLead.phone}
                       </span>
                     </div>
                   </div>
-
-                  <Target className="text-orange-500" size={32} />
                 </div>
 
-                <div className="mt-4 h-2 overflow-hidden rounded-full bg-white dark:bg-white/10">
-                  <div
-                    className={`h-full rounded-full ${scoreBarClass(
-                      selectedLead.score
-                    )}`}
-                    style={{ width: `${selectedLead.score}%` }}
-                  />
+                {/* AI Factors */}
+                <div>
+                  <h3 className="mb-3 text-sm font-semibold text-zinc-300">
+                    AI Scoring Factors
+                  </h3>
+
+                  <div className="space-y-4">
+                    <div>
+                      <div className="mb-1 flex justify-between text-xs">
+                        <span className="text-zinc-500">
+                          Engagement
+                        </span>
+                        <span className="text-zinc-300">
+                          {selectedLead.engagement}%
+                        </span>
+                      </div>
+
+                      <div className="h-1.5 rounded-full bg-zinc-800">
+                        <div
+                          className="h-full rounded-full bg-orange-500"
+                          style={{
+                            width: `${selectedLead.engagement}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3">
+                        <p className="text-xs text-zinc-500">
+                          Budget
+                        </p>
+                        <p className="mt-1 text-sm font-medium text-white">
+                          {selectedLead.budget}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3">
+                        <p className="text-xs text-zinc-500">
+                          Timeline
+                        </p>
+                        <p className="mt-1 text-sm font-medium text-white">
+                          {selectedLead.timeline}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3">
+                        <p className="text-xs text-zinc-500">
+                          Industry
+                        </p>
+                        <p className="mt-1 text-sm font-medium text-white">
+                          {selectedLead.industry}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3">
+                        <p className="text-xs text-zinc-500">
+                          Lead Source
+                        </p>
+                        <p className="mt-1 text-sm font-medium text-white">
+                          {selectedLead.source}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div>
+                  <h3 className="mb-3 text-sm font-semibold text-zinc-300">
+                    Quick Actions
+                  </h3>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <button className="flex items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-3 text-sm font-medium text-white transition hover:bg-orange-600">
+                      <MessageSquare className="h-4 w-4" />
+                      WhatsApp
+                    </button>
+
+                    <button className="flex items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm font-medium text-zinc-200 transition hover:bg-zinc-800">
+                      <Phone className="h-4 w-4" />
+                      Call Lead
+                    </button>
+                  </div>
+                </div>
+
+                {/* AI Recommendation */}
+                <div className="rounded-2xl border border-orange-500/20 bg-orange-500/5 p-5">
+                  <div className="flex gap-3">
+                    <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-orange-400" />
+
+                    <div>
+                      <h3 className="font-semibold text-orange-300">
+                        AI Recommendation
+                      </h3>
+
+                      <p className="mt-2 text-sm leading-6 text-zinc-400">
+                        {selectedLead.score >= 80
+                          ? "This lead has strong buying signals. Contact the lead immediately and prioritize a personalized sales conversation."
+                          : selectedLead.score >= 60
+                            ? "This lead shows good potential. Continue nurturing with relevant content and schedule a follow-up."
+                            : "This lead currently has lower buying signals. Keep the lead in a nurturing campaign and monitor future activity."}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              {/* FACTORS */}
-              <div>
-                <h3 className="mb-3 font-semibold">Scoring Factors</h3>
-
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Factor
-                    title="Buying Intent"
-                    value={selectedLead.intent}
-                  />
-                  <Factor title="Business Fit" value={selectedLead.fit} />
-                  <Factor title="Budget" value={selectedLead.budget} />
-                  <Factor title="Timeline" value={selectedLead.timeline} />
-                  <Factor
-                    title="Engagement"
-                    value={selectedLead.engagement}
-                  />
-                  <Factor title="Sales Stage" value={selectedLead.stage} />
-                </div>
-              </div>
-
-              {/* RECOMMENDATION */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  AI Recommendation
-                </p>
-
-                <p className="mt-2 text-sm leading-6 text-slate-700 dark:text-slate-300">
-                  {selectedLead.recommendation}
-                </p>
-              </div>
-
-              {/* CONTACT */}
-              <div className="flex flex-col gap-2 text-sm text-slate-500 dark:text-slate-400 sm:flex-row sm:gap-6">
-                <span>{selectedLead.email}</span>
-                <span>{selectedLead.phone}</span>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setSelectedLead(null)}
-                className="w-full rounded-xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-600"
-              >
-                Continue to Lead
-              </button>
             </div>
           </div>
-        </div>
-      )}
-    </main>
-  );
-}
+        )}
 
-function SummaryCard({
-  title,
-  value,
-  subtitle,
-  icon,
-  accent = "orange",
-}: {
-  title: string;
-  value: string;
-  subtitle: string;
-  icon: React.ReactNode;
-  accent?: "orange" | "yellow" | "blue";
-}) {
-  const iconClass =
-    accent === "orange"
-      ? "bg-orange-100 text-orange-500 dark:bg-orange-500/10 dark:text-orange-400"
-      : accent === "yellow"
-      ? "bg-yellow-100 text-yellow-600 dark:bg-yellow-500/10 dark:text-yellow-400"
-      : "bg-blue-100 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400";
+        {/* Scoring Rules Modal */}
+        {showRules && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <div
+              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+              onClick={() => setShowRules(false)}
+            />
 
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-[#111a2e]">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            {title}
-          </p>
+            <div className="relative w-full max-w-lg rounded-2xl border border-zinc-800 bg-[#101012] p-6 shadow-2xl">
+              <div className="mb-6 flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold">
+                    AI Scoring Rules
+                  </h2>
 
-          <p className="mt-2 text-2xl font-bold">{value}</p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    How TIVRA calculates lead priority
+                  </p>
+                </div>
 
-          <p className="mt-1 text-xs text-slate-400">{subtitle}</p>
-        </div>
+                <button
+                  onClick={() => setShowRules(false)}
+                  className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-800 hover:text-white"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
 
-        <div
-          className={`flex h-10 w-10 items-center justify-center rounded-xl ${iconClass}`}
-        >
-          {icon}
-        </div>
+              <div className="space-y-3">
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-zinc-300">
+                      Engagement
+                    </span>
+                    <span className="text-sm font-semibold text-orange-400">
+                      30%
+                    </span>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-zinc-300">
+                      Buying Intent
+                    </span>
+                    <span className="text-sm font-semibold text-orange-400">
+                      25%
+                    </span>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-zinc-300">
+                      Budget
+                    </span>
+                    <span className="text-sm font-semibold text-orange-400">
+                      20%
+                    </span>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-zinc-300">
+                      Activity
+                    </span>
+                    <span className="text-sm font-semibold text-orange-400">
+                      15%
+                    </span>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-zinc-300">
+                      Lead Source
+                    </span>
+                    <span className="text-sm font-semibold text-orange-400">
+                      10%
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-xl bg-zinc-900 p-4 text-xs leading-5 text-zinc-500">
+                <span className="font-medium text-zinc-300">
+                  Hot:
+                </span>{" "}
+                80–100 &nbsp;•&nbsp;
+                <span className="font-medium text-zinc-300">
+                  Warm:
+                </span>{" "}
+                60–79 &nbsp;•&nbsp;
+                <span className="font-medium text-zinc-300">
+                  Cold:
+                </span>{" "}
+                0–59
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-    </div>
-  );
-}
-
-function Factor({
-  title,
-  value,
-}: {
-  title: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-xl border border-slate-200 p-3 dark:border-white/10">
-      <p className="text-xs text-slate-500 dark:text-slate-400">{title}</p>
-      <p className="mt-1 text-sm font-semibold">{value}</p>
-    </div>
+    </main>
   );
 }

@@ -7,14 +7,17 @@ import {
   MessageSquare,
   FileText,
   CalendarDays,
-  BarChart3,
-  Bot,
   ArrowUpRight,
   ArrowDownRight,
   Clock3,
   MoreHorizontal,
   Plus,
   ChevronRight,
+  Eye,
+  Pencil,
+  MessageCircle,
+  CheckCircle2,
+  X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -122,6 +125,10 @@ const activities = [
 export default function DashboardPage() {
   const [dark, setDark] = useState(true);
 
+  // IMPORTANT STATES FOR THREE-DOT MENU
+  const [openLeadMenu, setOpenLeadMenu] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState("");
+
   useEffect(() => {
     const savedTheme = localStorage.getItem("tivra_theme");
 
@@ -132,6 +139,15 @@ export default function DashboardPage() {
     }
   }, []);
 
+  // Toast helper
+  const showToast = (message: string) => {
+    setToastMessage(message);
+
+    window.setTimeout(() => {
+      setToastMessage("");
+    }, 2200);
+  };
+
   const card = dark
     ? "border-white/10 bg-[#111a2e]"
     : "border-slate-200 bg-white";
@@ -141,9 +157,16 @@ export default function DashboardPage() {
   const border = dark ? "border-white/10" : "border-slate-200";
 
   return (
-    <div className={`min-h-screen ${text}`}>
+    <div
+      className={`min-h-screen ${text}`}
+      onClick={() => {
+        if (openLeadMenu) {
+          setOpenLeadMenu(null);
+        }
+      }}
+    >
       <div className="w-full p-4 md:p-6 lg:p-8">
-        {/* Page Header */}
+        {/* PAGE HEADER */}
         <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <div>
             <p className={`mb-1 text-sm ${muted}`}>Overview</p>
@@ -156,6 +179,7 @@ export default function DashboardPage() {
           <div className="flex gap-3">
             <Link
               href="/dashboard/leads"
+              onClick={(e) => e.stopPropagation()}
               className="flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600"
             >
               <Plus size={18} />
@@ -164,6 +188,7 @@ export default function DashboardPage() {
 
             <Link
               href="/dashboard/quotations"
+              onClick={(e) => e.stopPropagation()}
               className={`hidden items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition hover:border-orange-500 hover:text-orange-500 sm:flex ${border}`}
             >
               <FileText size={18} />
@@ -172,7 +197,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Stats */}
+        {/* STATS */}
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {stats.map((stat) => {
             const Icon = stat.icon;
@@ -189,9 +214,7 @@ export default function DashboardPage() {
 
                   <span
                     className={`flex items-center gap-1 text-xs font-semibold ${
-                      stat.positive
-                        ? "text-emerald-500"
-                        : "text-red-500"
+                      stat.positive ? "text-emerald-500" : "text-red-500"
                     }`}
                   >
                     {stat.positive ? (
@@ -206,25 +229,21 @@ export default function DashboardPage() {
 
                 <p className={`text-sm ${muted}`}>{stat.title}</p>
 
-                <p className="mt-1 text-3xl font-bold">
-                  {stat.value}
-                </p>
+                <p className="mt-1 text-3xl font-bold">{stat.value}</p>
               </div>
             );
           })}
         </div>
 
-        {/* Pipeline + AI Insight */}
+        {/* PIPELINE + AI */}
         <div className="mt-6 grid gap-6 xl:grid-cols-3">
-          {/* Pipeline */}
+          {/* PIPELINE */}
           <div
             className={`rounded-2xl border p-6 xl:col-span-2 ${card}`}
           >
             <div className="mb-6 flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-bold">
-                  Sales Pipeline
-                </h2>
+                <h2 className="text-lg font-bold">Sales Pipeline</h2>
 
                 <p className={`text-sm ${muted}`}>
                   Current leads by sales stage
@@ -233,6 +252,7 @@ export default function DashboardPage() {
 
               <Link
                 href="/dashboard/pipeline"
+                onClick={(e) => e.stopPropagation()}
                 className="flex items-center gap-1 text-sm font-semibold text-orange-500"
               >
                 View CRM
@@ -268,17 +288,15 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* AI Insight */}
+          {/* AI INSIGHT */}
           <div className="rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 p-6 text-white">
             <div className="mb-5 flex items-center gap-3">
               <div className="rounded-xl bg-white/20 p-3">
-                <Bot size={22} />
+                <Flame size={22} />
               </div>
 
               <div>
-                <h2 className="font-bold">
-                  AI Sales Insight
-                </h2>
+                <h2 className="font-bold">AI Sales Insight</h2>
 
                 <p className="text-xs text-white/70">
                   Updated just now
@@ -298,6 +316,7 @@ export default function DashboardPage() {
 
             <Link
               href="/dashboard/scoring"
+              onClick={(e) => e.stopPropagation()}
               className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-orange-600 transition hover:bg-slate-100"
             >
               View Hot Leads
@@ -306,19 +325,17 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Recent Leads + Activity */}
+        {/* RECENT LEADS + ACTIVITY */}
         <div className="mt-6 grid gap-6 xl:grid-cols-3">
-          {/* Recent Leads */}
+          {/* RECENT LEADS */}
           <div
-            className={`overflow-hidden rounded-2xl border xl:col-span-2 ${card}`}
+            className={`overflow-visible rounded-2xl border xl:col-span-2 ${card}`}
           >
             <div
               className={`flex items-center justify-between border-b p-6 ${border}`}
             >
               <div>
-                <h2 className="text-lg font-bold">
-                  Recent Leads
-                </h2>
+                <h2 className="text-lg font-bold">Recent Leads</h2>
 
                 <p className={`text-sm ${muted}`}>
                   Latest leads captured by TIVRA
@@ -327,13 +344,14 @@ export default function DashboardPage() {
 
               <Link
                 href="/dashboard/leads"
+                onClick={(e) => e.stopPropagation()}
                 className="text-sm font-semibold text-orange-500"
               >
                 View all
               </Link>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto overflow-y-visible">
               <table className="w-full min-w-[650px]">
                 <thead>
                   <tr
@@ -355,7 +373,9 @@ export default function DashboardPage() {
                       Status
                     </th>
 
-                    <th className="px-6 py-4"></th>
+                    <th className="px-6 py-4 text-right">
+                      Action
+                    </th>
                   </tr>
                 </thead>
 
@@ -365,6 +385,7 @@ export default function DashboardPage() {
                       key={lead.name}
                       className={`border-b last:border-0 ${border}`}
                     >
+                      {/* LEAD */}
                       <td className="px-6 py-4">
                         <div>
                           <p className="font-semibold">
@@ -377,47 +398,153 @@ export default function DashboardPage() {
                         </div>
                       </td>
 
-                      <td
-                        className={`px-6 py-4 text-sm ${muted}`}
-                      >
+                      {/* SOURCE */}
+                      <td className={`px-6 py-4 text-sm ${muted}`}>
                         {lead.source}
                       </td>
 
+                      {/* SCORE */}
                       <td className="px-6 py-4">
                         <span
                           className={`font-bold ${
                             lead.score >= 80
                               ? "text-orange-500"
                               : lead.score >= 60
-                              ? "text-yellow-500"
-                              : "text-slate-400"
+                                ? "text-yellow-500"
+                                : "text-slate-400"
                           }`}
                         >
                           {lead.score}/100
                         </span>
                       </td>
 
+                      {/* STATUS */}
                       <td className="px-6 py-4">
                         <span
                           className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
                             lead.status === "Hot"
                               ? "bg-orange-500/10 text-orange-500"
                               : lead.status === "Warm"
-                              ? "bg-yellow-500/10 text-yellow-500"
-                              : "bg-slate-500/10 text-slate-400"
+                                ? "bg-yellow-500/10 text-yellow-500"
+                                : "bg-slate-500/10 text-slate-400"
                           }`}
                         >
                           {lead.status}
                         </span>
                       </td>
 
-                      <td className="px-6 py-4 text-right">
+                      {/* ACTION MENU */}
+                      <td className="relative px-6 py-4 text-right">
                         <button
                           type="button"
-                          className={`rounded-lg p-1 transition hover:bg-orange-500/10 hover:text-orange-500 ${muted}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+
+                            setOpenLeadMenu((current) =>
+                              current === lead.name
+                                ? null
+                                : lead.name
+                            );
+                          }}
+                          className={`inline-flex items-center justify-center rounded-lg p-2 transition hover:bg-orange-500/10 hover:text-orange-500 ${muted}`}
+                          title={`Actions for ${lead.name}`}
                         >
-                          <MoreHorizontal size={18} />
+                          <MoreHorizontal size={19} />
                         </button>
+
+                        {openLeadMenu === lead.name && (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className={`absolute right-4 top-[52px] z-[9999] w-52 rounded-xl border p-1.5 text-left shadow-2xl ${
+                              dark
+                                ? "border-white/10 bg-[#182238] text-white"
+                                : "border-slate-200 bg-white text-slate-900"
+                            }`}
+                          >
+                            {/* VIEW LEAD */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenLeadMenu(null);
+                                showToast(
+                                  `Opening ${lead.name}`
+                                );
+                              }}
+                              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-medium transition hover:bg-orange-500/10 hover:text-orange-500"
+                            >
+                              <Eye size={15} />
+                              View Lead
+                            </button>
+
+                            {/* EDIT LEAD */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenLeadMenu(null);
+                                showToast(
+                                  `Editing ${lead.name}`
+                                );
+                              }}
+                              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-medium transition hover:bg-orange-500/10 hover:text-orange-500"
+                            >
+                              <Pencil size={15} />
+                              Edit Lead
+                            </button>
+
+                            {/* WHATSAPP */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenLeadMenu(null);
+                                showToast(
+                                  `Starting WhatsApp chat with ${lead.name}`
+                                );
+                              }}
+                              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-medium transition hover:bg-orange-500/10 hover:text-orange-500"
+                            >
+                              <MessageCircle size={15} />
+                              WhatsApp
+                            </button>
+
+                            {/* CREATE QUOTE */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenLeadMenu(null);
+                                showToast(
+                                  `Creating quotation for ${lead.name}`
+                                );
+                              }}
+                              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-medium transition hover:bg-orange-500/10 hover:text-orange-500"
+                            >
+                              <FileText size={15} />
+                              Create Quote
+                            </button>
+
+                            <div
+                              className={`my-1 border-t ${
+                                dark
+                                  ? "border-white/10"
+                                  : "border-slate-100"
+                              }`}
+                            />
+
+                            {/* MARK CONTACTED */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenLeadMenu(null);
+                                showToast(
+                                  `${lead.name} marked as contacted`
+                                );
+                              }}
+                              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-medium text-green-500 transition hover:bg-green-500/10"
+                            >
+                              <CheckCircle2 size={15} />
+                              Mark Contacted
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -426,10 +553,8 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Recent Activity */}
-          <div
-            className={`rounded-2xl border ${card}`}
-          >
+          {/* RECENT ACTIVITY */}
+          <div className={`rounded-2xl border ${card}`}>
             <div
               className={`border-b p-6 ${border}`}
             >
@@ -484,6 +609,7 @@ export default function DashboardPage() {
 
               <Link
                 href="/dashboard/analytics"
+                onClick={(e) => e.stopPropagation()}
                 className={`mt-7 flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition hover:border-orange-500 hover:text-orange-500 ${border}`}
               >
                 View Analytics
@@ -493,7 +619,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Quick Actions */}
+        {/* QUICK ACTIONS */}
         <div className="mt-6 pb-8">
           <h2 className="mb-4 text-lg font-bold">
             Quick Actions
@@ -534,9 +660,31 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* TOAST */}
+      {toastMessage && (
+        <div className="fixed bottom-6 left-1/2 z-[10000] flex -translate-x-1/2 items-center gap-3 rounded-xl bg-slate-900 px-5 py-3 text-sm font-medium text-white shadow-2xl">
+          <CheckCircle2
+            size={17}
+            className="text-green-400"
+          />
+
+          <span>{toastMessage}</span>
+
+          <button
+            type="button"
+            onClick={() => setToastMessage("")}
+            className="ml-2 rounded-md p-1 text-slate-400 hover:bg-white/10 hover:text-white"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
+
+/* QUICK ACTION COMPONENT */
 
 function QuickAction({
   href,

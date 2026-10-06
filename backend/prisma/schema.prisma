@@ -1,105 +1,144 @@
-generator client { provider = "prisma-client-js" }
-datasource db { provider = "postgresql" url = env("DATABASE_URL") }
+generator client {
+  provider = "prisma-client-js"
+}
 
-enum Role { SUPER_ADMIN ADMIN SALES_MANAGER SALESPERSON MARKETING VIEWER }
-enum LeadStage { NEW CONTACTED QUALIFIED DEMO QUOTATION NEGOTIATION WON LOST }
-enum Temperature { HOT WARM COLD }
-enum QuoteStatus { DRAFT SENT VIEWED ACCEPTED REJECTED EXPIRED }
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  SALES_MANAGER
+  SALESPERSON
+  MARKETING
+  VIEWER
+}
+
+enum LeadStage {
+  NEW
+  CONTACTED
+  QUALIFIED
+  DEMO
+  QUOTATION
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum Temperature {
+  HOT
+  WARM
+  COLD
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  VIEWED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
 
 model Tenant {
-  id String @id @default(cuid())
-  name String
-  users User[]
-  leads Lead[]
+  id         String       @id @default(cuid())
+  name       String
+  users      User[]
+  leads      Lead[]
   quotations Quotation[]
-  createdAt DateTime @default(now())
+  createdAt  DateTime     @default(now())
 }
 
 model User {
-  id String @id @default(cuid())
-  tenantId String
-  tenant Tenant @relation(fields:[tenantId], references:[id])
-  name String
-  email String @unique
-  role Role @default(SALESPERSON)
-  assignedLeads Lead[] @relation("LeadOwner")
-  createdAt DateTime @default(now())
+  id            String    @id @default(cuid())
+  tenantId      String
+  tenant        Tenant    @relation(fields: [tenantId], references: [id])
+  name          String
+  email         String    @unique
+  passwordHash   String
+  role          Role      @default(SALESPERSON)
+  assignedLeads Lead[]    @relation("LeadOwner")
+  createdAt     DateTime  @default(now())
 }
 
 model Lead {
-  id String @id @default(cuid())
-  tenantId String
-  name String
-  company String?
-  phone String?
-  email String?
-  location String?
-  businessType String?
-  product String?
-  quantity String?
-  budget String?
-  timeline String?
-  requirements String?
-  source String?
-  campaign String?
-  score Int @default(0)
-  temperature Temperature @default(COLD)
-  stage LeadStage @default(NEW)
-  ownerId String?
-  owner User? @relation("LeadOwner", fields:[ownerId], references:[id])
-  quotations Quotation[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String       @id @default(cuid())
+  tenantId      String
+  tenant        Tenant       @relation(fields: [tenantId], references: [id])
+  name          String
+  company       String?
+  phone         String?
+  email         String?
+  location      String?
+  businessType  String?
+  product       String?
+  quantity      String?
+  budget        String?
+  timeline      String?
+  requirements  String?
+  source        String?
+  campaign      String?
+  score         Int          @default(0)
+  temperature   Temperature  @default(COLD)
+  stage         LeadStage    @default(NEW)
+  ownerId       String?
+  owner         User?        @relation("LeadOwner", fields: [ownerId], references: [id])
+  quotations    Quotation[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 }
 
 model Quotation {
-  id String @id @default(cuid())
-  tenantId String
-  leadId String
-  title String
-  subtotal Decimal
-  tax Decimal
-  discount Decimal @default(0)
-  total Decimal
-  status QuoteStatus @default(DRAFT)
-  validUntil DateTime?
-  createdAt DateTime @default(now())
-  lead Lead @relation(fields:[leadId], references:[id])
+  id          String       @id @default(cuid())
+  tenantId    String
+  tenant      Tenant      @relation(fields: [tenantId], references: [id])
+  leadId      String
+  lead        Lead        @relation(fields: [leadId], references: [id])
+  title       String
+  subtotal    Decimal
+  tax         Decimal
+  discount    Decimal      @default(0)
+  total       Decimal
+  status      QuoteStatus  @default(DRAFT)
+  validUntil  DateTime?
+  createdAt   DateTime     @default(now())
 }
 
 model FollowUp {
-  id String @id @default(cuid())
-  leadId String
-  title String
+  id          String    @id @default(cuid())
+  leadId      String
+  title       String
   scheduledAt DateTime
-  completed Boolean @default(false)
-  createdAt DateTime @default(now())
+  completed   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
 }
 
 model Appointment {
-  id String @id @default(cuid())
-  leadId String
-  startAt DateTime
-  endAt DateTime
-  outcome String?
+  id         String    @id @default(cuid())
+  leadId     String
+  startAt    DateTime
+  endAt      DateTime
+  outcome    String?
   nextAction String?
 }
 
 model KnowledgeItem {
-  id String @id @default(cuid())
-  tenantId String
-  title String
-  content String
-  approved Boolean @default(false)
+  id        String   @id @default(cuid())
+  tenantId  String
+  title     String
+  content   String
+  approved  Boolean  @default(false)
   createdAt DateTime @default(now())
 }
 
 model AuditLog {
-  id String @id @default(cuid())
-  tenantId String
-  userId String?
-  action String
-  entity String
-  entityId String?
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
   createdAt DateTime @default(now())
 }

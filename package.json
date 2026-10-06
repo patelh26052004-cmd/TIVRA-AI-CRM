@@ -7,5 +7,10 @@
     "build": "npm run build --prefix frontend",
     "start": "npm run start --prefix frontend"
   },
-  "devDependencies": {"concurrently": "^9.1.0"}
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  },
+  "dependencies": {
+    "jspdf": "^4.2.1"
+  }
 }
