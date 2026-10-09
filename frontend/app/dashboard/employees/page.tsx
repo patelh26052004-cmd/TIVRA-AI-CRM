@@ -302,8 +302,12 @@ function initials(name: string) {
 }
 
 export default function EmployeesRolesPage() {
-  const [employees, setEmployees] = useState<Employee[]>(initialEmployees);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [roles, setRoles] = useState<Role[]>(initialRoles);
+
+  const [tenantId, setTenantId] = useState("");
+const [loadingEmployees, setLoadingEmployees] = useState(false);
+
   const [hydrated, setHydrated] = useState(false);
 
   const [activeTab, setActiveTab] = useState<Tab>("employees");
@@ -321,15 +325,21 @@ export default function EmployeesRolesPage() {
   const [deleteRoleId, setDeleteRoleId] = useState<string | null>(null);
 
   useEffect(() => {
-    setEmployees(safeLoad<Employee[]>("tivra_employees", initialEmployees));
-    setRoles(safeLoad<Role[]>("tivra_roles", initialRoles));
-    setHydrated(true);
-  }, []);
+  const storedTenantId =
+    window.localStorage.getItem("tivra_tenant_id");
 
-  useEffect(() => {
-    if (!hydrated) return;
-    window.localStorage.setItem("tivra_employees", JSON.stringify(employees));
-  }, [employees, hydrated]);
+  if (storedTenantId) {
+    setTenantId(storedTenantId);
+  }
+
+  setRoles(safeLoad<Role[]>("tivra_roles", initialRoles));
+  setHydrated(true);
+}, []);
+
+  // useEffect(() => {
+  //   if (!hydrated) return;
+  //   window.localStorage.setItem("tivra_employees", JSON.stringify(employees));
+  // }, [employees, hydrated]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -376,83 +386,272 @@ export default function EmployeesRolesPage() {
     setStatusFilter("ALL");
   };
 
-  const saveEmployee = (input: Employee) => {
-    const name = input.name.trim();
-    const email = input.email.trim();
-    const phone = input.phone.trim();
+  const fetchEmployees = async (currentTenantId = tenantId) => {
+  if (!currentTenantId) return;
 
-    if (!name) {
-      alert("Please enter employee name.");
-      return;
-    }
-    if (!email) {
-      alert("Please enter employee email.");
-      return;
-    }
-    if (!input.department) {
-      alert("Please select department.");
-      return;
-    }
-    if (!input.role) {
-      alert("Please select role.");
-      return;
-    }
-    if (!input.joiningDate) {
-      alert("Please select joining date.");
-      return;
-    }
+  try {
+    setLoadingEmployees(true);
 
-    const cleanEmployee: Employee = {
-      ...input,
-      name,
-      email,
-      phone: phone || "Not added",
-      employeeCode: input.employeeCode.trim(),
-      notes: input.notes.trim(),
-      location: input.location.trim() || "India",
-    };
+    const response = await fetch(
+      `http://localhost:5000/api/users?tenantId=${encodeURIComponent(
+        currentTenantId
+      )}`,
+      {
+        cache: "no-store",
+      }
+    );
 
-    if (input.id) {
-      setEmployees((current) =>
-        current.map((employee) =>
-          employee.id === input.id ? cleanEmployee : employee
-        )
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(
+        data.message || "Unable to load employees."
       );
-      alert("Employee updated successfully.");
-    } else {
-      setEmployees((current) => [
-        {
-          ...cleanEmployee,
-          id: `EMP-${Date.now()}`,
-          employeeCode: cleanEmployee.employeeCode || makeEmployeeCode(current),
-        },
-        ...current,
-      ]);
-      alert("Employee created successfully.");
     }
+
+    const mappedEmployees: Employee[] = (data.users || []).map(
+      (user: any) => ({
+        id: user.id,
+        employeeCode: user.employeeCode || "",
+        name: user.name || "",
+        email: user.email || "",
+        phone: user.phone || "",
+        department: user.department || "",
+        role: user.jobTitle || user.role || "",
+        status:
+          user.status === "INACTIVE" ? "INACTIVE" : "ACTIVE",
+        joiningDate: user.joiningDate
+          ? String(user.joiningDate).slice(0, 10)
+          : "",
+        location: user.location || "India",
+        notes: user.notes || "",
+      })
+    );
+
+    setEmployees(mappedEmployees);
+  } catch (error) {
+    console.error("Fetch employees error:", error);
+
+    alert(
+      error instanceof Error
+        ? error.message
+        : "Unable to load employees."
+    );
+  } finally {
+    setLoadingEmployees(false);
+  }
+};
+
+useEffect(() => {
+  if (!tenantId) return;
+
+  fetchEmployees(tenantId);
+}, [tenantId]);
+
+
+
+  const saveEmployee = async (input: Employee) => {
+  const name = input.name.trim();
+  const email = input.email.trim();
+  const phone = input.phone.trim();
+
+  if (!tenantId) {
+    alert("Tenant information is missing. Please login again.");
+    return;
+  }
+
+  if (!name) {
+    alert("Please enter employee name.");
+    return;
+  }
+
+  if (!email) {
+    alert("Please enter employee email.");
+    return;
+  }
+
+  if (!input.department) {
+    alert("Please select department.");
+    return;
+  }
+
+  if (!input.role) {
+    alert("Please select role.");
+    return;
+  }
+
+  if (!input.joiningDate) {
+    alert("Please select joining date.");
+    return;
+  }
+
+  const payload = {
+    tenantId,
+    name,
+    email,
+    role: "SALESPERSON",
+    jobTitle: input.role,
+    employeeCode: input.employeeCode.trim() || null,
+    phone: phone || null,
+    department: input.department,
+    status: input.status,
+    joiningDate: input.joiningDate,
+    location: input.location.trim() || "India",
+    notes: input.notes.trim() || null,
+  };
+
+  try {
+    const isEditing = Boolean(input.id);
+
+    const response = await fetch(
+      isEditing
+        ? `http://localhost:5000/api/users/${encodeURIComponent(input.id)}`
+        : "http://localhost:5000/api/users",
+      {
+        method: isEditing ? "PATCH" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(
+        data.message ||
+          (isEditing
+            ? "Unable to update employee."
+            : "Unable to create employee.")
+      );
+    }
+
+    alert(
+      isEditing
+        ? "Employee updated successfully."
+        : "Employee created successfully."
+    );
 
     setEditingEmployee(null);
-  };
 
-  const deleteEmployee = (id: string) => {
-    setEmployees((current) => current.filter((employee) => employee.id !== id));
-    setDeleteEmployeeId(null);
-    alert("Employee deleted successfully.");
-  };
+    await fetchEmployees();
+  } catch (error) {
+    console.error("Save employee error:", error);
 
-  const toggleEmployeeStatus = (id: string) => {
-    setEmployees((current) =>
-      current.map((employee) =>
-        employee.id === id
-          ? {
-              ...employee,
-              status: employee.status === "ACTIVE" ? "INACTIVE" : "ACTIVE",
-            }
-          : employee
-      )
+    alert(
+      error instanceof Error
+        ? error.message
+        : "Unable to save employee."
     );
+  }
+};
+
+ const deleteEmployee = async (id: string) => {
+  if (!tenantId) {
+    alert("Tenant information is missing. Please login again.");
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `http://localhost:5000/api/users/${encodeURIComponent(
+        id
+      )}?tenantId=${encodeURIComponent(tenantId)}`,
+      {
+        method: "DELETE",
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(
+        data.message || "Unable to delete employee."
+      );
+    }
+
+    alert("Employee deleted successfully.");
+
+    setDeleteEmployeeId(null);
+
+    await fetchEmployees();
+  } catch (error) {
+    console.error("Delete employee error:", error);
+
+    alert(
+      error instanceof Error
+        ? error.message
+        : "Unable to delete employee."
+    );
+  }
+};
+
+  const toggleEmployeeStatus = async (id: string) => {
+  const employee = employees.find((item) => item.id === id);
+
+  if (!employee) {
+    return;
+  }
+
+  if (!tenantId) {
+    alert("Tenant information is missing. Please login again.");
+    return;
+  }
+
+  const newStatus =
+    employee.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+
+  try {
+    const response = await fetch(
+      `http://localhost:5000/api/users/${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          tenantId,
+          name: employee.name,
+          email: employee.email,
+          role: "SALESPERSON",
+          jobTitle: employee.role,
+          employeeCode: employee.employeeCode || null,
+          phone: employee.phone || null,
+          department: employee.department,
+          status: newStatus,
+          joiningDate: employee.joiningDate,
+          location: employee.location || "India",
+          notes: employee.notes || null,
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(
+        data.message || "Unable to update employee status."
+      );
+    }
+
+    alert(
+      `Employee status changed to ${newStatus === "ACTIVE" ? "Active" : "Inactive"}.`
+    );
+
     setOpenMenu(null);
-  };
+
+    await fetchEmployees();
+  } catch (error) {
+    console.error("Toggle employee status error:", error);
+
+    alert(
+      error instanceof Error
+        ? error.message
+        : "Unable to update employee status."
+    );
+  }
+};
 
   const saveRole = (input: Role) => {
     const name = input.name.trim();

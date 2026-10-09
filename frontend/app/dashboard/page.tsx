@@ -21,83 +21,83 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
-const stats = [
-  {
-    title: "Total Leads",
-    value: "1,248",
-    change: "+12.5%",
-    positive: true,
-    icon: Users,
-  },
-  {
-    title: "Hot Leads",
-    value: "186",
-    change: "+8.2%",
-    positive: true,
-    icon: Flame,
-  },
-  {
-    title: "Follow-ups",
-    value: "64",
-    change: "-4.1%",
-    positive: false,
-    icon: Clock3,
-  },
-  {
-    title: "Quotations",
-    value: "42",
-    change: "+15.3%",
-    positive: true,
-    icon: FileText,
-  },
-];
+// const stats = [
+//   {
+//     title: "Total Leads",
+//     value: leads.length.toLocaleString(),
+//     change: "+12.5%",
+//     positive: true,
+//     icon: Users,
+//   },
+//   {
+//     title: "Hot Leads",
+//     value: "186",
+//     change: "+8.2%",
+//     positive: true,
+//     icon: Flame,
+//   },
+//   {
+//     title: "Follow-ups",
+//     value: "64",
+//     change: "-4.1%",
+//     positive: false,
+//     icon: Clock3,
+//   },
+//   {
+//     title: "Quotations",
+//     value: "42",
+//     change: "+15.3%",
+//     positive: true,
+//     icon: FileText,
+//   },
+// ];
 
-const pipeline = [
-  { name: "New", value: 320, percentage: 100 },
-  { name: "Contacted", value: 248, percentage: 77 },
-  { name: "Qualified", value: 182, percentage: 57 },
-  { name: "Demo / Meeting", value: 104, percentage: 32 },
-  { name: "Quotation", value: 72, percentage: 22 },
-  { name: "Negotiation", value: 41, percentage: 13 },
-];
+// const pipeline = [
+//   { name: "New", value: 320, percentage: 100 },
+//   { name: "Contacted", value: 248, percentage: 77 },
+//   { name: "Qualified", value: 182, percentage: 57 },
+//   { name: "Demo / Meeting", value: 104, percentage: 32 },
+//   { name: "Quotation", value: 72, percentage: 22 },
+//   { name: "Negotiation", value: 41, percentage: 13 },
+// ];
 
-const recentLeads = [
-  {
-    name: "Rahul Mehta",
-    company: "Mehta Industries",
-    source: "Website",
-    score: 92,
-    status: "Hot",
-  },
-  {
-    name: "Priya Shah",
-    company: "Shah Enterprises",
-    source: "WhatsApp",
-    score: 84,
-    status: "Hot",
-  },
-  {
-    name: "Amit Patel",
-    company: "Patel Manufacturing",
-    source: "Campaign",
-    score: 71,
-    status: "Warm",
-  },
-  {
-    name: "Neha Desai",
-    company: "Desai Solutions",
-    source: "Website",
-    score: 58,
-    status: "Warm",
-  },
-  {
-    name: "Karan Joshi",
-    company: "Joshi Traders",
-    source: "WhatsApp",
-    score: 36,
-    status: "Cold",
-  },
-];
+// const recentLeads = [
+//   {
+//     name: "Rahul Mehta",
+//     company: "Mehta Industries",
+//     source: "Website",
+//     score: 92,
+//     status: "Hot",
+//   },
+//   {
+//     name: "Priya Shah",
+//     company: "Shah Enterprises",
+//     source: "WhatsApp",
+//     score: 84,
+//     status: "Hot",
+//   },
+//   {
+//     name: "Amit Patel",
+//     company: "Patel Manufacturing",
+//     source: "Campaign",
+//     score: 71,
+//     status: "Warm",
+//   },
+//   {
+//     name: "Neha Desai",
+//     company: "Desai Solutions",
+//     source: "Website",
+//     score: 58,
+//     status: "Warm",
+//   },
+//   {
+//     name: "Karan Joshi",
+//     company: "Joshi Traders",
+//     source: "WhatsApp",
+//     score: 36,
+//     status: "Cold",
+//   },
+// ];
 
 const activities = [
   {
@@ -124,10 +124,48 @@ const activities = [
 
 export default function DashboardPage() {
   const [dark, setDark] = useState(true);
+  const [userName, setUserName] = useState("Admin");
+  const [leads, setLeads] = useState<any[]>([]);
+  const [quotations, setQuotations] = useState<any[]>([]);
+  const [followUps, setFollowUps] = useState<any[]>([]);
+
+    const stats = [
+    {
+      title: "Total Leads",
+      value: leads.length.toLocaleString(),
+      change: "+12.5%",
+      positive: true,
+      icon: Users,
+    },
+    {
+      title: "Hot Leads",
+      value: leads.filter((lead) => lead.temperature === "HOT").length.toLocaleString(),
+      change: "+8.2%",
+      positive: true,
+      icon: Flame,
+    },
+    {
+      title: "Follow-ups",
+      value: followUps.length.toLocaleString(),
+      change: "-4.1%",
+      positive: false,
+      icon: Clock3,
+    },
+    {
+      title: "Quotations",
+      value: quotations.length.toLocaleString(),
+      change: "+15.3%",
+      positive: true,
+      icon: FileText,
+    },
+  ];
+
+  // IMPORTANT STATES FOR THREE-DOT MENU
 
   // IMPORTANT STATES FOR THREE-DOT MENU
   const [openLeadMenu, setOpenLeadMenu] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState("");
+  const [selectedLead, setSelectedLead] = useState<any | null>(null);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("tivra_theme");
@@ -138,6 +176,82 @@ export default function DashboardPage() {
       setDark(true);
     }
   }, []);
+
+                
+                  useEffect(() => {
+                  async function fetchLeads() {
+                    try {
+                      const tenantId = localStorage.getItem("tivra_tenant_id");
+
+                      if (!tenantId) {
+                        return;
+                      }
+
+                      const response = await fetch(
+                        `http://localhost:5000/api/leads?tenantId=${tenantId}`
+                      );
+
+                      const data = await response.json();
+
+                      if (response.ok && data.success) {
+                        setLeads(data.leads || []);
+                      }
+                    } catch (error) {
+                      console.error("Failed to fetch leads:", error);
+                    }
+                  }
+
+                  fetchLeads();
+                }, []);
+
+            useEffect(() => {
+                async function fetchQuotations() {
+                  try {
+                    const tenantId = localStorage.getItem("tivra_tenant_id");
+
+                    if (!tenantId) {
+                      return;
+                    }
+
+                    const response = await fetch(
+                      `http://localhost:5000/api/quotations?tenantId=${tenantId}`
+                    );
+
+                    const data = await response.json();
+
+                    if (response.ok && data.success) {
+                      setQuotations(data.quotations || []);
+                    }
+                  } catch (error) {
+                    console.error("Failed to fetch quotations:", error);
+                  }
+                }
+
+                fetchQuotations();
+              }, []);
+
+                    useEffect(() => {
+                      async function fetchFollowUps() {
+                        try {
+                          const tenantId = localStorage.getItem("tivra_tenant_id");
+                          if (!tenantId) return;
+
+                          const response = await fetch(
+                            `http://localhost:5000/api/follow-ups?tenantId=${tenantId}`
+                          );
+
+                          const data = await response.json();
+
+                          if (response.ok && data.success) {
+                            setFollowUps(data.followUps || []);
+                          }
+                        } catch (error) {
+                          console.error("Failed to fetch follow-ups:", error);
+                        }
+                      }
+
+                      fetchFollowUps();
+                    }, []);
 
   // Toast helper
   const showToast = (message: string) => {
@@ -172,7 +286,7 @@ export default function DashboardPage() {
             <p className={`mb-1 text-sm ${muted}`}>Overview</p>
 
             <h1 className="text-3xl font-bold tracking-tight">
-              Sales Dashboard
+                Welcome, {userName}
             </h1>
           </div>
 
@@ -261,30 +375,63 @@ export default function DashboardPage() {
             </div>
 
             <div className="space-y-5">
-              {pipeline.map((item) => (
-                <div key={item.name}>
-                  <div className="mb-2 flex items-center justify-between text-sm">
-                    <span>{item.name}</span>
+                            {[
+                {
+                  name: "New",
+                  value: leads.filter((lead) => lead.stage === "NEW").length,
+                },
+                {
+                  name: "Contacted",
+                  value: leads.filter((lead) => lead.stage === "CONTACTED").length,
+                },
+                {
+                  name: "Qualified",
+                  value: leads.filter((lead) => lead.stage === "QUALIFIED").length,
+                },
+                {
+                  name: "Demo / Meeting",
+                  value: leads.filter((lead) => lead.stage === "DEMO").length,
+                },
+                {
+                  name: "Quotation",
+                  value: leads.filter((lead) => lead.stage === "QUOTATION").length,
+                },
+                {
+                  name: "Negotiation",
+                  value: leads.filter((lead) => lead.stage === "NEGOTIATION").length,
+                },
+              ].map((item) => {
+                const totalLeads = leads.length;
+                const percentage =
+                  totalLeads > 0
+                    ? Math.round((item.value / totalLeads) * 100)
+                    : 0;
 
-                    <span className={`font-semibold ${muted}`}>
-                      {item.value} leads
-                    </span>
-                  </div>
+                return (
+                  <div key={item.name}>
+                    <div className="mb-2 flex items-center justify-between text-sm">
+                      <span>{item.name}</span>
 
-                  <div
-                    className={`h-2.5 overflow-hidden rounded-full ${
-                      dark ? "bg-white/10" : "bg-slate-100"
-                    }`}
-                  >
+                      <span className={`font-semibold ${muted}`}>
+                        {item.value} leads
+                      </span>
+                    </div>
+
                     <div
-                      className="h-full rounded-full bg-orange-500 transition-all"
-                      style={{
-                        width: `${item.percentage}%`,
-                      }}
-                    />
+                      className={`h-2.5 overflow-hidden rounded-full ${
+                        dark ? "bg-white/10" : "bg-slate-100"
+                      }`}
+                    >
+                      <div
+                        className="h-full rounded-full bg-orange-500 transition-all"
+                        style={{
+                          width: `${percentage}%`,
+                        }}
+                      />
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -380,9 +527,9 @@ export default function DashboardPage() {
                 </thead>
 
                 <tbody>
-                  {recentLeads.map((lead) => (
+                  {leads.slice(0, 5).map((lead) => (
                     <tr
-                      key={lead.name}
+                      key={lead.id}
                       className={`border-b last:border-0 ${border}`}
                     >
                       {/* LEAD */}
@@ -429,7 +576,7 @@ export default function DashboardPage() {
                                 : "bg-slate-500/10 text-slate-400"
                           }`}
                         >
-                          {lead.status}
+                          {lead.stage}
                         </span>
                       </td>
 
@@ -465,11 +612,9 @@ export default function DashboardPage() {
                             <button
                               type="button"
                               onClick={() => {
-                                setOpenLeadMenu(null);
-                                showToast(
-                                  `Opening ${lead.name}`
-                                );
-                              }}
+                                  setOpenLeadMenu(null);
+                                  setSelectedLead(lead);
+                                }}
                               className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-medium transition hover:bg-orange-500/10 hover:text-orange-500"
                             >
                               <Eye size={15} />
@@ -477,19 +622,19 @@ export default function DashboardPage() {
                             </button>
 
                             {/* EDIT LEAD */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setOpenLeadMenu(null);
-                                showToast(
-                                  `Editing ${lead.name}`
-                                );
-                              }}
-                              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-medium transition hover:bg-orange-500/10 hover:text-orange-500"
-                            >
-                              <Pencil size={15} />
-                              Edit Lead
-                            </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenLeadMenu(null);
+                                    window.location.href = `/dashboard/leads?edit=${encodeURIComponent(lead.id)}`;
+                                  }}
+                                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-medium transition hover:bg-orange-500/10 hover:text-orange-500"
+                                >
+                                  <Pencil size={15} />
+                                  Edit Lead
+                                </button>
+
 
                             {/* WHATSAPP */}
                             <button
@@ -660,6 +805,161 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* LEAD DETAILS MODAL */}
+              {selectedLead && (
+                <div
+                  className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+                  onClick={() => setSelectedLead(null)}
+                >
+                  <div
+                    className={`w-full max-w-2xl rounded-2xl border p-6 shadow-2xl ${
+                      dark
+                        ? "border-white/10 bg-[#111a2e] text-white"
+                        : "border-slate-200 bg-white text-slate-900"
+                    }`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {/* HEADER */}
+                    <div className="mb-6 flex items-center justify-between">
+                      <div>
+                        <h2 className="text-xl font-bold">
+                          Lead Details
+                        </h2>
+
+                        <p className={`mt-1 text-sm ${muted}`}>
+                          Complete information about this lead
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedLead(null)}
+                        className={`rounded-lg p-2 transition hover:bg-orange-500/10 hover:text-orange-500 ${muted}`}
+                      >
+                        <X size={20} />
+                      </button>
+                    </div>
+
+                    {/* DETAILS */}
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <p className={`text-xs ${muted}`}>Lead Name</p>
+                        <p className="mt-1 font-semibold">
+                          {selectedLead.name || "-"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className={`text-xs ${muted}`}>Company</p>
+                        <p className="mt-1 font-semibold">
+                          {selectedLead.company || "-"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className={`text-xs ${muted}`}>Phone</p>
+                        <p className="mt-1 font-semibold">
+                          {selectedLead.phone || "-"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className={`text-xs ${muted}`}>Email</p>
+                        <p className="mt-1 font-semibold">
+                          {selectedLead.email || "-"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className={`text-xs ${muted}`}>Source</p>
+                        <p className="mt-1 font-semibold">
+                          {selectedLead.source || "-"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className={`text-xs ${muted}`}>Status</p>
+                        <p className="mt-1 font-semibold text-orange-500">
+                          {selectedLead.stage || "-"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className={`text-xs ${muted}`}>AI Score</p>
+                        <p className="mt-1 font-semibold">
+                          {selectedLead.score ?? 0}/100
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className={`text-xs ${muted}`}>Priority</p>
+                        <p className="mt-1 font-semibold">
+                          {selectedLead.priority || "-"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className={`text-xs ${muted}`}>Product</p>
+                        <p className="mt-1 font-semibold">
+                          {selectedLead.product || "-"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className={`text-xs ${muted}`}>Budget</p>
+                        <p className="mt-1 font-semibold">
+                          {selectedLead.budget || "-"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className={`text-xs ${muted}`}>Timeline</p>
+                        <p className="mt-1 font-semibold">
+                          {selectedLead.timeline || "-"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className={`text-xs ${muted}`}>Location</p>
+                        <p className="mt-1 font-semibold">
+                          {selectedLead.location || "-"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* REQUIREMENTS / NOTES */}
+                    <div className="mt-5">
+                      <p className={`text-xs ${muted}`}>
+                        Requirements / Notes
+                      </p>
+
+                      <div
+                        className={`mt-2 rounded-xl border p-4 text-sm leading-6 ${
+                          dark
+                            ? "border-white/10 bg-white/5 text-slate-300"
+                            : "border-slate-200 bg-slate-50 text-slate-600"
+                        }`}
+                      >
+                        {selectedLead.requirements ||
+                          selectedLead.notes ||
+                          "No additional requirements or notes."}
+                      </div>
+                    </div>
+
+                    {/* CLOSE */}
+                    <div className="mt-6 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedLead(null)}
+                        className="rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
       {/* TOAST */}
       {toastMessage && (

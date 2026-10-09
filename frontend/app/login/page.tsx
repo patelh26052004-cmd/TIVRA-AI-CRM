@@ -18,7 +18,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
-  function handleLogin(e: React.FormEvent) {
+    async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setError("");
 
@@ -27,11 +27,44 @@ export default function LoginPage() {
       return;
     }
 
-    // Demo authentication
-    localStorage.setItem("tivra_user", email);
-    localStorage.setItem("tivra_role", "Admin");
+    try {
+      const response = await fetch("http://localhost:5000/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          password,
+        }),
+      });
 
-    window.location.href = "/dashboard";
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.message || "Invalid email or password.");
+        return;
+      }
+
+      if (!data.success || !data.user) {
+        setError("Login could not be completed. Please try again.");
+        return;
+      }
+
+      localStorage.setItem("tivra_user", data.user.email);
+      localStorage.setItem("tivra_user_id", data.user.id);
+      localStorage.setItem("tivra_user_name", data.user.name);
+      localStorage.setItem("tivra_role", data.user.role);
+      localStorage.setItem("tivra_tenant_id", data.user.tenantId);
+      localStorage.setItem("tivra_company_name", data.tenant?.name || "");
+
+      window.location.href = "/dashboard";
+    } catch (error) {
+      console.error("Login error:", error);
+      setError(
+        "Unable to connect to TIVRA server. Please make sure the backend is running."
+      );
+    }
   }
 
   return (

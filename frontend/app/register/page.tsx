@@ -110,7 +110,7 @@ export default function RegisterPage() {
     return "";
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const validationError = validate();
@@ -122,56 +122,46 @@ export default function RegisterPage() {
 
     try {
       setSubmitting(true);
+      setError("");
 
-      const rawUsers = localStorage.getItem("tivra_registered_users");
-      const existingUsers: RegistrationData[] = rawUsers
-        ? JSON.parse(rawUsers)
-        : [];
+      const response = await fetch("http://localhost:5000/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: form.fullName.trim(),
+          email: form.email.trim().toLowerCase(),
+          password: form.password,
+          companyName: form.companyName.trim(),
+        }),
+      });
 
-      const normalizedEmail = form.email.trim().toLowerCase();
+      const data = await response.json();
 
-      const emailExists = existingUsers.some(
-        (user) => user.email.toLowerCase() === normalizedEmail
-      );
-
-      if (emailExists) {
+      if (!response.ok) {
+        setError(data.message || "Registration could not be completed.");
         setSubmitting(false);
-        setError("An account with this email already exists. Please log in.");
         return;
       }
 
-      const registration: RegistrationData = {
-        id: `USR-${Date.now()}`,
-        fullName: form.fullName.trim(),
-        companyName: form.companyName.trim(),
-        email: normalizedEmail,
-        phone: form.phone.trim(),
-        password: form.password,
-        createdAt: new Date().toISOString(),
-      };
-
-      localStorage.setItem(
-        "tivra_registered_users",
-        JSON.stringify([...existingUsers, registration])
-      );
-
-      // Keep a simple frontend-only registration handoff.
       localStorage.setItem(
         "tivra_registration_success",
         JSON.stringify({
-          fullName: registration.fullName,
-          companyName: registration.companyName,
-          email: registration.email,
-          createdAt: registration.createdAt,
+          fullName: form.fullName.trim(),
+          companyName: form.companyName.trim(),
+          email: form.email.trim().toLowerCase(),
+          createdAt: new Date().toISOString(),
         })
       );
 
-      setTimeout(() => {
-        router.push("/login?registered=1");
-      }, 500);
-    } catch {
+      router.push("/login?registered=1");
+    } catch (error) {
+      console.error("Registration error:", error);
+      setError(
+        "Unable to connect to TIVRA server. Please make sure the backend is running."
+      );
       setSubmitting(false);
-      setError("Registration could not be completed. Please try again.");
     }
   }
 

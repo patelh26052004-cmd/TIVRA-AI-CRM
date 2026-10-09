@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Plus,
   Search,
@@ -35,8 +36,15 @@ type LeadStatus =
 
 type LeadPriority = "Hot" | "Warm" | "Cold";
 
+type Employee = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+};
+
 type Lead = {
-  id: number;
+  id: string;
   name: string;
   company: string;
   email: string;
@@ -51,83 +59,66 @@ type Lead = {
   timeline: string;
   notes: string;
   assignedTo: string;
+  ownerId?: string | null;
   createdAt: string;
 };
 
-const initialLeads: Lead[] = [
-  {
-    id: 1,
-    name: "Rahul Mehta",
-    company: "Mehta Industries",
-    email: "rahul@mehtaindustries.com",
-    phone: "+91 98765 43210",
-    location: "Ahmedabad, Gujarat",
-    source: "Website",
-    score: 92,
-    priority: "Hot",
-    status: "QUALIFIED",
-    product: "CRM Software",
-    budget: "₹1,00,000",
-    timeline: "Within 7 days",
-    notes: "Interested in complete CRM automation.",
-    assignedTo: "Admin",
-    createdAt: "2026-09-01",
-  },
-  {
-    id: 2,
-    name: "Priya Shah",
-    company: "Shah Enterprises",
-    email: "priya@shahenterprises.com",
-    phone: "+91 98765 12345",
-    location: "Surat, Gujarat",
-    source: "WhatsApp",
-    score: 84,
-    priority: "Hot",
-    status: "CONTACTED",
-    product: "AI Sales Automation",
-    budget: "₹75,000",
-    timeline: "Within 15 days",
-    notes: "Requested product demo.",
-    assignedTo: "Admin",
-    createdAt: "2026-09-03",
-  },
-  {
-    id: 3,
-    name: "Amit Patel",
-    company: "Patel Manufacturing",
-    email: "amit@patelmanufacturing.com",
-    phone: "+91 98250 45678",
-    location: "Vadodara, Gujarat",
-    source: "Campaign",
-    score: 71,
-    priority: "Warm",
-    status: "DEMO",
-    product: "Sales CRM",
-    budget: "₹60,000",
-    timeline: "This month",
-    notes: "Demo scheduled.",
-    assignedTo: "Admin",
-    createdAt: "2026-09-05",
-  },
-  {
-    id: 4,
-    name: "Neha Desai",
-    company: "Desai Solutions",
-    email: "neha@desaisolutions.com",
-    phone: "+91 99090 12345",
-    location: "Rajkot, Gujarat",
-    source: "Website",
-    score: 58,
-    priority: "Warm",
-    status: "NEW",
-    product: "Lead Management",
-    budget: "₹40,000",
-    timeline: "Next month",
-    notes: "",
-    assignedTo: "Unassigned",
-    createdAt: "2026-09-07",
-  },
-];
+const emptyLead: Lead = {
+  id: "",
+  name: "",
+  company: "",
+  email: "",
+  phone: "",
+  location: "",
+  source: "Manual",
+  score: 50,
+  priority: "Warm",
+  status: "NEW",
+  product: "",
+  budget: "",
+  timeline: "",
+  notes: "",
+  assignedTo: "Unassigned",
+  ownerId: null,
+  createdAt: "",
+};
+
+function calculateScore(priority: LeadPriority) {
+  if (priority === "Hot") return 90;
+  if (priority === "Warm") return 70;
+  return 45;
+}
+
+function mapApiLead(apiLead: any): Lead {
+  const priorityMap: Record<string, LeadPriority> = {
+    HOT: "Hot",
+    WARM: "Warm",
+    COLD: "Cold",
+  };
+
+  return {
+    id: String(apiLead.id),
+    name: apiLead.name || "",
+    company: apiLead.company || "",
+    email: apiLead.email || "",
+    phone: apiLead.phone || "",
+    location: apiLead.location || "",
+    source: apiLead.source || "Manual",
+    score: Number(apiLead.score ?? 0),
+    priority: priorityMap[apiLead.temperature] || "Cold",
+    status: apiLead.stage || "NEW",
+    product: apiLead.product || "",
+    budget: apiLead.budget || "",
+    timeline: apiLead.timeline || "",
+    notes: apiLead.requirements || "",
+    assignedTo:
+    apiLead.owner?.jobTitle ||
+    apiLead.owner?.name ||
+    "Unassigned",
+    ownerId: apiLead.ownerId || null,
+    createdAt: apiLead.createdAt || "",
+  };
+}
 
 const statusConfig: Record<
   LeadStatus,
@@ -167,51 +158,11 @@ const statusConfig: Record<
   },
 };
 
-const emptyLead: Lead = {
-  id: 0,
-  name: "",
-  company: "",
-  email: "",
-  phone: "",
-  location: "",
-  source: "Manual",
-  score: 50,
-  priority: "Warm",
-  status: "NEW",
-  product: "",
-  budget: "",
-  timeline: "",
-  notes: "",
-  assignedTo: "Unassigned",
-  createdAt: "",
-};
-
-function getInitialLeads(): Lead[] {
-  if (typeof window === "undefined") {
-    return initialLeads;
-  }
-
-  try {
-    const saved = localStorage.getItem("tivra_leads");
-
-    if (saved) {
-      return JSON.parse(saved);
-    }
-  } catch {
-    // ignore invalid localStorage
-  }
-
-  return initialLeads;
-}
-
-function calculateScore(priority: LeadPriority) {
-  if (priority === "Hot") return 90;
-  if (priority === "Warm") return 70;
-  return 45;
-}
-
 export default function LeadCRMPage() {
-  const [leads, setLeads] = useState<Lead[]>(getInitialLeads);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState("");
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<LeadStatus | "ALL">("ALL");
@@ -219,17 +170,114 @@ export default function LeadCRMPage() {
     LeadPriority | "ALL"
   >("ALL");
 
+  const searchParams = useSearchParams();
   const [showForm, setShowForm] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [viewingLead, setViewingLead] = useState<Lead | null>(null);
 
   const [form, setForm] = useState<Lead>(emptyLead);
+  const [menuId, setMenuId] = useState<string | null>(null);
 
-  const [menuId, setMenuId] = useState<number | null>(null);
+  const tenantId =
+    typeof window !== "undefined"
+      ? localStorage.getItem("tivra_tenant_id")
+      : null;
 
-  useEffect(() => {
-    localStorage.setItem("tivra_leads", JSON.stringify(leads));
-  }, [leads]);
+  const currentUserId =
+    typeof window !== "undefined"
+      ? localStorage.getItem("tivra_user_id")
+      : null;
+
+  async function fetchLeads() {
+    if (!tenantId) {
+      setApiError("No TIVRA workspace found. Please sign in again.");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setApiError("");
+
+      const response = await fetch(
+        `http://localhost:5000/api/leads?tenantId=${encodeURIComponent(
+          tenantId
+        )}`,
+        { cache: "no-store" }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Unable to load leads.");
+      }
+
+      setLeads((data.leads || []).map(mapApiLead));
+    } catch (error) {
+      console.error("Fetch leads error:", error);
+      setApiError(
+        error instanceof Error
+          ? error.message
+          : "Unable to connect to TIVRA server."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+    async function fetchEmployees() {
+    if (!tenantId) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/users?tenantId=${encodeURIComponent(
+          tenantId
+        )}`,
+        { cache: "no-store" }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.message || "Unable to load employees."
+        );
+      }
+          setEmployees(
+            (data.users || [])
+              .filter((user: any) => user.status === "ACTIVE")
+              .map((user: any) => ({
+                ...user,
+                role: user.jobTitle || user.role || "",
+              }))
+          );
+
+    } catch (error) {
+      console.error("Fetch employees error:", error);
+    }
+  }
+
+
+            useEffect(() => {
+              fetchLeads();
+              fetchEmployees();
+            }, []);
+
+            useEffect(() => {
+              const leadId = searchParams.get("edit");
+
+              if (!leadId || loading) return;
+
+              const leadToEdit = leads.find((lead) => lead.id === leadId);
+
+              if (leadToEdit) {
+                openEditForm(leadToEdit);
+                window.history.replaceState({}, "", "/dashboard/leads");
+              }
+            }, [searchParams, loading, leads]);
+
 
   const filteredLeads = useMemo(() => {
     return leads.filter((lead) => {
@@ -271,8 +319,10 @@ export default function LeadCRMPage() {
 
     setForm({
       ...emptyLead,
-      id: Date.now(),
-      createdAt: new Date().toISOString().slice(0, 10),
+      id: "",
+      createdAt: "",
+      ownerId: currentUserId,
+      assignedTo: localStorage.getItem("tivra_user_name") || "Unassigned",
     });
 
     setShowForm(true);
@@ -301,62 +351,244 @@ export default function LeadCRMPage() {
     }));
   }
 
-  function saveLead() {
+  async function saveLead() {
     if (!form.name.trim()) {
       alert("Please enter lead name.");
       return;
     }
 
-    if (!form.company.trim()) {
-      alert("Please enter company name.");
+    if (!tenantId) {
+      alert("Your workspace session is missing. Please sign in again.");
       return;
     }
 
     const finalLead: Lead = {
       ...form,
       score: calculateScore(form.priority),
+      ownerId: form.ownerId || currentUserId,
     };
 
-    if (editingLead) {
-      setLeads((current) =>
-        current.map((lead) =>
-          lead.id === editingLead.id ? finalLead : lead
-        )
-      );
-    } else {
-      setLeads((current) => [finalLead, ...current]);
-    }
+    const payload = {
+      tenantId,
+      ownerId: finalLead.ownerId || null,
+      name: finalLead.name,
+      company: finalLead.company,
+      email: finalLead.email,
+      phone: finalLead.phone,
+      location: finalLead.location,
+      product: finalLead.product,
+      budget: finalLead.budget,
+      timeline: finalLead.timeline,
+      requirements: finalLead.notes,
+      source: finalLead.source,
+      score: finalLead.score,
+      temperature: finalLead.priority.toUpperCase(),
+      stage: finalLead.status,
+    };
 
-    closeForm();
+    try {
+      const response = await fetch(
+        editingLead
+          ? `http://localhost:5000/api/leads/${editingLead.id}`
+          : "http://localhost:5000/api/leads",
+        {
+          method: editingLead ? "PATCH" : "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Unable to save lead.");
+      }
+
+      const savedLead = mapApiLead(data.lead);
+
+      setLeads((current) =>
+        editingLead
+          ? current.map((lead) =>
+              lead.id === editingLead.id ? savedLead : lead
+            )
+          : [savedLead, ...current]
+      );
+
+      closeForm();
+    } catch (error) {
+      console.error("Save lead error:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to save lead."
+      );
+    }
   }
 
-  function deleteLead(id: number) {
+  async function deleteLead(id: string) {
     const confirmed = window.confirm(
       "Are you sure you want to delete this lead?"
     );
 
-    if (!confirmed) return;
+    if (!confirmed || !tenantId) return;
 
-    setLeads((current) =>
-      current.filter((lead) => lead.id !== id)
-    );
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/leads/${id}?tenantId=${encodeURIComponent(
+          tenantId
+        )}`,
+        { method: "DELETE" }
+      );
 
-    setMenuId(null);
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Unable to delete lead.");
+      }
+
+      setLeads((current) =>
+        current.filter((lead) => lead.id !== id)
+      );
+      setMenuId(null);
+    } catch (error) {
+      console.error("Delete lead error:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to delete lead."
+      );
+    }
   }
 
-  function updateStatus(id: number, status: LeadStatus) {
-    setLeads((current) =>
-      current.map((lead) =>
-        lead.id === id
-          ? {
-              ...lead,
-              status,
-            }
-          : lead
-      )
+  async function updatePriority(
+  id: string,
+  priority: LeadPriority
+) {
+  const lead = leads.find((item) => item.id === id);
+
+  if (!lead || !tenantId) return;
+
+  try {
+    const response = await fetch(
+      `http://localhost:5000/api/leads/${id}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          tenantId,
+          ownerId:
+            lead.ownerId ||
+            currentUserId ||
+            null,
+          name: lead.name,
+          company: lead.company,
+          email: lead.email,
+          phone: lead.phone,
+          location: lead.location,
+          product: lead.product,
+          budget: lead.budget,
+          timeline: lead.timeline,
+          requirements: lead.notes,
+          source: lead.source,
+          score: lead.score,
+          temperature: priority.toUpperCase(),
+          stage: lead.status,
+        }),
+      }
     );
 
-    setMenuId(null);
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(
+        data.message ||
+          "Unable to update lead priority."
+      );
+    }
+
+    const updatedLead = mapApiLead(data.lead);
+
+    setLeads((current) =>
+      current.map((item) =>
+        item.id === id
+          ? updatedLead
+          : item
+      )
+    );
+  } catch (error) {
+    console.error(
+      "Update priority error:",
+      error
+    );
+
+    alert(
+      error instanceof Error
+        ? error.message
+        : "Unable to update lead priority."
+    );
+  }
+}
+
+  async function updateStatus(id: string, status: LeadStatus) {
+    const lead = leads.find((item) => item.id === id);
+
+    if (!lead || !tenantId) return;
+
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/leads/${id}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            tenantId,
+            ownerId: lead.ownerId || currentUserId || null,
+            name: lead.name,
+            company: lead.company,
+            email: lead.email,
+            phone: lead.phone,
+            location: lead.location,
+            product: lead.product,
+            budget: lead.budget,
+            timeline: lead.timeline,
+            requirements: lead.notes,
+            source: lead.source,
+            score: lead.score,
+            temperature: lead.priority.toUpperCase(),
+            stage: status,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Unable to update lead status.");
+      }
+
+      const updatedLead = mapApiLead(data.lead);
+
+      setLeads((current) =>
+        current.map((item) =>
+          item.id === id ? updatedLead : item
+        )
+      );
+
+      setMenuId(null);
+    } catch (error) {
+      console.error("Update status error:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to update lead status."
+      );
+    }
   }
 
   return (
@@ -382,6 +614,24 @@ export default function LeadCRMPage() {
           Add Lead
         </button>
       </div>
+
+      {apiError && (
+        <div className="mb-5 flex items-center justify-between rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          <span>{apiError}</span>
+          <button
+            onClick={fetchLeads}
+            className="rounded-lg border border-red-500/20 px-3 py-1.5 text-xs font-semibold hover:bg-red-500/10"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {loading && (
+        <div className="mb-5 rounded-xl border border-white/10 bg-[#0d111a] px-4 py-3 text-sm text-slate-400">
+          Loading leads from database...
+        </div>
+      )}
 
       {/* STATS */}
 
@@ -635,6 +885,9 @@ export default function LeadCRMPage() {
                   <td className="px-5 py-4">
                     <PriorityBadge
                       priority={lead.priority}
+                        onChange={(priority) =>
+                      updatePriority(lead.id, priority)
+                      }
                     />
                   </td>
 
@@ -934,14 +1187,61 @@ export default function LeadCRMPage() {
                 placeholder="Website / WhatsApp / Campaign"
               />
 
-              <FormInput
-                label="Assigned Employee"
-                value={form.assignedTo}
-                onChange={(value) =>
-                  updateForm("assignedTo", value)
-                }
-                placeholder="Employee name"
-              />
+              <div>
+                <label className="mb-2 block text-xs font-medium text-slate-400">
+                Assigned Employee
+              </label>
+
+              <select
+                        value={form.ownerId || ""}
+                        onChange={(e) => {
+                          const selectedEmployee = employees.find(
+                            (employee) => employee.id === e.target.value
+                          );
+
+                          updateForm(
+                            "ownerId",
+                            e.target.value || null
+                          );
+
+                          updateForm(
+                            "assignedTo",
+                            selectedEmployee?.name || "Unassigned"
+                          );
+                        }}
+                        className="w-full rounded-xl border border-white/10 bg-[#070c1b] px-4 py-3 text-sm text-white outline-none focus:border-orange-500/50"
+                      >
+                        <option
+                          value=""
+                          className="bg-[#0d111a]"
+                        >
+                          Unassigned
+                        </option>
+
+                        {form.ownerId &&
+                          !employees.some(
+                            (employee) => employee.id === form.ownerId
+                          ) &&
+                          editingLead?.assignedTo && (
+                            <option
+                              value={form.ownerId}
+                              className="bg-[#0d111a]"
+                            >
+                              {editingLead.assignedTo} — Inactive
+                            </option>
+                          )}
+
+                        {employees.map((employee) => (
+                          <option
+                            key={employee.id}
+                            value={employee.id}
+                            className="bg-[#0d111a]"
+                          >
+                            {employee.name} — {employee.role}
+                          </option>
+                        ))}
+                      </select>
+              </div>
 
               <div className="md:col-span-2">
                 <label className="mb-2 block text-xs font-medium text-slate-400">
@@ -1073,6 +1373,9 @@ export default function LeadCRMPage() {
                 <div className="mt-2">
                   <PriorityBadge
                     priority={viewingLead.priority}
+                     onChange={(priority) =>
+                    updatePriority(viewingLead.id, priority)
+                    }
                   />
                 </div>
               </div>
@@ -1153,8 +1456,10 @@ function StatCard({
 
 function PriorityBadge({
   priority,
+  onChange,
 }: {
   priority: LeadPriority;
+  onChange: (priority: LeadPriority) => void;
 }) {
   const styles = {
     Hot: "bg-red-500/10 text-red-400 border-red-500/20",
@@ -1163,15 +1468,36 @@ function PriorityBadge({
   };
 
   return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium ${styles[priority]}`}
+    <select
+      value={priority}
+      onChange={(e) =>
+        onChange(
+          e.target.value as LeadPriority
+        )
+      }
+      className={`rounded-lg border px-3 py-2 text-xs font-medium outline-none ${styles[priority]} bg-[#0d111a]`}
     >
-      {priority === "Hot" && (
-        <Flame size={13} />
-      )}
+      <option
+        value="Hot"
+        className="bg-[#0d111a] text-white"
+      >
+        🔥 Hot
+      </option>
 
-      {priority}
-    </span>
+      <option
+        value="Warm"
+        className="bg-[#0d111a] text-white"
+      >
+        🟠 Warm
+      </option>
+
+      <option
+        value="Cold"
+        className="bg-[#0d111a] text-white"
+      >
+        🔵 Cold
+      </option>
+    </select>
   );
 }
 
