@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Plus,
@@ -158,7 +158,7 @@ const statusConfig: Record<
   },
 };
 
-export default function LeadCRMPage() {
+function LeadCRMContent() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
@@ -260,23 +260,23 @@ export default function LeadCRMPage() {
   }
 
 
-            useEffect(() => {
-              fetchLeads();
-              fetchEmployees();
-            }, []);
+      useEffect(() => {
+        fetchLeads();
+        fetchEmployees();
+      }, []);
 
-            useEffect(() => {
-              const leadId = searchParams.get("edit");
+      useEffect(() => {
+        const leadId = searchParams.get("edit");
 
-              if (!leadId || loading) return;
+        if (!leadId || loading) return;
 
-              const leadToEdit = leads.find((lead) => lead.id === leadId);
+        const leadToEdit = leads.find((lead) => lead.id === leadId);
 
-              if (leadToEdit) {
-                openEditForm(leadToEdit);
-                window.history.replaceState({}, "", "/dashboard/leads");
-              }
-            }, [searchParams, loading, leads]);
+        if (leadToEdit) {
+          openEditForm(leadToEdit);
+          window.history.replaceState({}, "", "/dashboard/leads");
+        }
+      }, [searchParams, loading, leads]);
 
 
   const filteredLeads = useMemo(() => {
@@ -1419,6 +1419,21 @@ export default function LeadCRMPage() {
         </div>
       )}
     </div>
+  );
+}
+
+
+export default function LeadCRMPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#070c1b] p-6 text-white">
+          Loading leads...
+        </div>
+      }
+    >
+      <LeadCRMContent />
+    </Suspense>
   );
 }
 
